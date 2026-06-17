@@ -1,5 +1,7 @@
 # Rainbow Leaderboard 🏆
 
+![Screenshot](assets/screenshot.png)
+
 A competitive ranking and match-tracking system for **Rainbow Six Siege** — with ELO ratings, seasons, tournaments, and Discord auth. Built for communities that want to run their own ranked ladder.
 
 ## Features
