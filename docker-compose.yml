@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16
+    container_name: rainbow-leaderboard-db
+    environment:
+      POSTGRES_USER: rainbow
+      POSTGRES_PASSWORD: rainbow
+      POSTGRES_DB: rainbow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rainbow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: rainbow-leaderboard-api:latest
+    container_name: rainbow-leaderboard-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
+      - SECRET_KEY=rainbow-leaderboard-session-key-2024
+      - DISCORD_CLIENT_ID=1515200841131495564
+      - DISCORD_CLIENT_SECRET=Zp6smO0qqzqxOtudVg2s2eBUfqqXQJ52
+      - DISCORD_REDIRECT_URI=http://3.140.184.93:8000/auth/callback
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

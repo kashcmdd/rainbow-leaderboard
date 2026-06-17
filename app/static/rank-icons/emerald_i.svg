@@ -1,0 +1,4 @@
+<svg width="48" height="48" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="20,2 38,20 20,38 2,20" fill="#007A30" stroke="#00e676" stroke-width="1.5"/>
+  <text x="20" y="25" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="system-ui,sans-serif">I</text>
+</svg>

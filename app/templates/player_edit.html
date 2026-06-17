@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-sm mx-auto">
+    <h1 class="text-2xl font-extrabold text-white mb-1" id="playerName">Loading...</h1>
+    <p class="text-[10px] text-gray-600 uppercase tracking-widest mb-6">Edit player stats</p>
+    <div class="card p-6">
+        <form id="editForm" class="space-y-4">
+            <div><label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Username</label><input type="text" name="username" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white"></div>
+            <div><label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">ELO</label><input type="number" name="elo" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white"></div>
+            <div><label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Wins</label><input type="number" name="wins" min="0" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white"></div>
+            <div><label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Losses</label><input type="number" name="losses" min="0" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white"></div>
+            <button type="submit" class="btn btn-pink w-full py-3 text-sm">Save Changes</button>
+        </form>
+        <div id="result" class="hidden mt-4 p-4 rounded-lg text-sm"></div>
+    </div>
+</div>
+<script>
+async function loadPlayer() {
+    const res = await fetch('/api/players/{{ player_id }}');
+    const data = await res.json();
+    document.getElementById('playerName').textContent = data.username;
+    document.querySelector('[name="username"]').value = data.username;
+    const r = data.ratings.find(r => r.format === '1v1') || {};
+    document.querySelector('[name="elo"]').value = r.elo || 0;
+    document.querySelector('[name="wins"]').value = r.wins || 0;
+    document.querySelector('[name="losses"]').value = r.losses || 0;
+}
+document.getElementById('editForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    const username = fd.get('username'); if (username) body.username = username;
+    const elo = parseInt(fd.get('elo')); if (!isNaN(elo)) body.elo = elo;
+    const wins = parseInt(fd.get('wins')); if (!isNaN(wins)) body.wins = wins;
+    const losses = parseInt(fd.get('losses')); if (!isNaN(losses)) body.losses = losses;
+    const res = await fetch('/api/players/{{ player_id }}', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+    if (res.ok) { result.style.background='rgba(0,230,118,0.1)'; result.style.border='1px solid rgba(0,230,118,0.2)'; result.style.color='#00e676'; result.innerHTML = 'Saved! <a href="/player/{{ player_id }}" class="underline font-medium">View profile</a>'; }
+    else { const err = await res.json(); result.style.background='rgba(239,68,68,0.1)'; result.style.border='1px solid rgba(239,68,68,0.2)'; result.style.color='#ef4444'; result.textContent = err.detail || 'Error saving'; }
+});
+loadPlayer();
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-400 mb-6">Create Player</h1>
+
+<form id="playerForm" class="max-w-md space-y-4">
+    <div>
+        <label class="block text-sm text-gray-400 mb-1">Username</label>
+        <input type="text" name="username" required minlength="2" maxlength="64"
+               class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white">
+    </div>
+    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-3 rounded-lg transition">
+        Create Player
+    </button>
+</form>
+
+<div id="result" class="hidden mt-6 p-4 rounded-lg"></div>
+
+<script>
+document.getElementById('playerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = e.target.username.value;
+
+    const res = await fetch('/api/players', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username}),
+    });
+
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+
+    if (res.ok) {
+        const data = await res.json();
+        result.className = 'mt-6 p-4 rounded-lg bg-green-900/50 border border-green-700 text-green-300';
+        result.innerHTML = `Player <strong>${data.username}</strong> created! ID: <code class="text-sm">${data.id}</code>
+        <br><a href="/player/${data.id}" class="underline">View profile</a>`;
+        e.target.reset();
+    } else {
+        const err = await res.json();
+        result.className = 'mt-6 p-4 rounded-lg bg-red-900/50 border border-red-700 text-red-300';
+        result.textContent = err.detail || 'Error creating player';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,709 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.checkbox { accent-color: #e8197d; width:16px; height:16px; cursor:pointer; }
+.rank-dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.avatar-sm { width:28px; height:28px; border-radius:50%; object-fit:cover; background:#1c1c1f; flex-shrink:0; cursor:pointer; }
+.dist-bar { height:6px; border-radius:3px; transition:width 0.6s ease; }
+.sort-btn { cursor:pointer; user-select:none; }
+.sort-btn:hover { color:#e8197d; }
+.banned-row { background:rgba(239,68,68,0.04); }
+.banned-row td input { color:#ef4444 !important; }
+.profile-sidepanel { position:fixed; top:0; right:0; bottom:0; width:420px; max-width:100vw; z-index:100; background:#141416; border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s ease; overflow-y:auto; }
+.profile-sidepanel.open { transform:translateX(0); }
+.profile-backdrop { position:fixed; inset:0; z-index:99; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity 0.3s ease; }
+.profile-backdrop.open { opacity:1; pointer-events:auto; }
+.pagination-btn { min-width:32px; text-align:center; }
+</style>
+
+<h1 class="text-2xl font-extrabold text-white mb-6">Admin Panel</h1>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden card px-5 py-3 text-sm shadow-xl border transition-all" style="border-color:rgba(255,255,255,0.1);"></div>
+
+<div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+  <div class="card p-8 w-full max-w-sm mx-4">
+    <h3 id="modalTitle" class="text-lg font-bold text-white mb-2"></h3>
+    <p id="modalDesc" class="text-xs text-gray-500 mb-5"></p>
+    <div id="modalDanger" class="hidden mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:#ef4444;">Type <span class="font-bold">CONFIRM</span> to proceed:</label>
+      <input id="modalConfirmInput" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(239,68,68,0.3);" placeholder="Type CONFIRM">
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button id="modalCancel" class="btn text-xs">Cancel</button>
+      <button id="modalConfirm" class="btn text-xs" style="border-color:#ef4444;color:#ef4444;" disabled>Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="eloModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+  <div class="card p-8 w-full max-w-sm mx-4">
+    <h3 class="text-lg font-bold text-white mb-1" id="eloModalTitle">Adjust ELO</h3>
+    <p class="text-xs text-gray-500 mb-5" id="eloModalPlayer"></p>
+    <div class="mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Amount (+/-)</label>
+      <input id="eloAmount" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" placeholder="e.g. 25 or -25">
+    </div>
+    <div class="mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Reason <span style="color:#ef4444;">*</span></label>
+      <input id="eloReason" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" placeholder="Reason for adjustment...">
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button id="eloCancel" class="btn text-xs">Cancel</button>
+      <button id="eloConfirm" class="btn btn-pink text-xs">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="avatarModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+  <div class="card p-8 w-full max-w-sm mx-4">
+    <h3 class="text-lg font-bold text-white mb-1" id="avatarModalTitle">Upload Avatar</h3>
+    <p class="text-xs text-gray-500 mb-5" id="avatarModalPlayer"></p>
+    <div class="mb-4">
+      <input id="avatarFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700">
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button id="avatarCancel" class="btn text-xs">Cancel</button>
+      <button id="avatarConfirm" class="btn btn-pink text-xs">Upload</button>
+    </div>
+  </div>
+</div>
+
+<div id="profileBackdrop" class="profile-backdrop"></div>
+<div id="profilePanel" class="profile-sidepanel"></div>
+
+<div id="adminContent">
+  <div class="card p-8 animate-pulse"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div><div class="h-5 bg-white/5 rounded w-1/2"></div></div>
+</div>
+
+<script>
+let modalResolve, modalReject;
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = type === 'success' ? 'rgba(0,230,118,0.3)' : 'rgba(239,68,68,0.3)';
+  t.style.background = type === 'success' ? 'rgba(0,230,118,0.08)' : 'rgba(239,68,68,0.08)';
+  t.style.color = type === 'success' ? '#00e676' : '#ef4444';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+function showModal(title, desc, dangerous) {
+  return new Promise((resolve, reject) => {
+    modalResolve = resolve; modalReject = reject;
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalDesc').textContent = desc;
+    const dangerDiv = document.getElementById('modalDanger');
+    const input = document.getElementById('modalConfirmInput');
+    const btn = document.getElementById('modalConfirm');
+    if (dangerous) {
+      dangerDiv.classList.remove('hidden');
+      input.value = ''; btn.disabled = true;
+      input.oninput = () => { const ok = input.value.trim().toUpperCase() === 'CONFIRM'; btn.disabled = !ok; btn.style.background = ok ? 'rgba(239,68,68,0.15)' : 'transparent'; };
+    } else { dangerDiv.classList.add('hidden'); btn.disabled = false; }
+    document.getElementById('confirmModal').classList.remove('hidden');
+    document.getElementById('confirmModal').classList.add('flex');
+  });
+}
+document.getElementById('modalCancel').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalReject) modalReject(); });
+document.getElementById('modalConfirm').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalResolve) modalResolve(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalReject) modalReject(); }});
+
+const RANKS = [
+  ["Bronze I",0,"#7A4520"],["Bronze II",100,"#96541A"],["Bronze III",200,"#B8682A"],["Bronze IV",300,"#CD7F32"],["Bronze V",400,"#E09A50"],
+  ["Silver I",500,"#787878"],["Silver II",600,"#909090"],["Silver III",700,"#A8A8A8"],["Silver IV",800,"#C0C0C0"],["Silver V",900,"#D8D8D8"],
+  ["Gold I",1000,"#B8960C"],["Gold II",1100,"#CCA800"],["Gold III",1200,"#FFD700"],["Gold IV",1300,"#FFE033"],["Gold V",1400,"#FFEA70"],
+  ["Platinum I",1500,"#0088AA"],["Platinum II",1600,"#00AACC"],["Platinum III",1700,"#00C8E8"],["Platinum IV",1800,"#00E5FF"],["Platinum V",1900,"#66F0FF"],
+  ["Emerald I",2000,"#007A30"],["Emerald II",2100,"#009940"],["Emerald III",2200,"#00BB50"],["Emerald IV",2300,"#00E676"],["Emerald V",2400,"#33FF8A"],
+  ["Diamond I",2500,"#6600CC"],["Diamond II",2600,"#7B35FF"],["Diamond III",2700,"#9955FF"],["Diamond IV",2800,"#B388FF"],["Diamond V",2900,"#CCAAFF"],
+  ["Champion",3000,"#E8197D"]
+];
+function getRank(elo) { for (let i=RANKS.length-1;i>=0;i--) { if (elo>=RANKS[i][1]) return RANKS[i]; } return ["Unranked",0,"#666"]; }
+
+let allPlayers = [], allRatingData = {}, ownerIds = [], currentPage = 1, pageSize = 20, sortField = null, sortDir = 'asc', searchQuery = '', rankFilter = '', bannedFilter = 'all';
+
+const $ = id => document.getElementById(id);
+
+async function loadAdmin() {
+  let stats = { total_players:0, total_matches:0, active_players:0, total_ratings:0, avg_elo:0, highest_elo:0, distribution:[], owner_ids:[] };
+  try { const sr = await fetch('/api/admin/stats'); if (sr.ok) stats = await sr.json(); } catch {}
+  ownerIds = stats.owner_ids || [];
+
+  let matches = [];
+  try { const mr = await fetch('/api/admin/matches?limit=30'); if (mr.ok) matches = await mr.json(); } catch {}
+
+  let auditLog = [];
+  try { const ar = await fetch('/api/admin/audit-log?limit=100'); if (ar.ok) auditLog = await ar.json(); } catch {}
+
+  allPlayers = await (await fetch('/api/players')).json();
+
+  allRatingData = {};
+  for (const p of allPlayers) {
+    try {
+      const d = await (await fetch('/api/players/'+p.id)).json();
+      const r = d.ratings.find(r=>r.format==='1v1')||{elo:0,wins:0,losses:0,matches_played:0};
+      allRatingData[p.id] = r;
+    } catch { allRatingData[p.id] = {elo:0,wins:0,losses:0,matches_played:0}; }
+  }
+
+  renderStats(stats);
+  renderDistribution(stats);
+  renderManagement();
+  renderAddPlayer();
+  renderPlayerTable();
+  renderAuditLog(auditLog);
+  renderMatches(matches);
+  wireGlobal();
+}
+
+function renderStats(s) {
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6" id="statsRow">
+    <div class="card p-4 text-center animate-slide-up stagger-1"><div class="text-lg font-extrabold text-white">${s.total_players}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Players</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-2"><div class="text-lg font-extrabold text-white">${s.total_matches}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Matches</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-3"><div class="text-lg font-extrabold text-white">${s.total_ratings}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Ratings</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-4"><div class="text-lg font-extrabold text-white">${s.active_players}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Active (7d)</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-white">${s.avg_elo}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Avg ELO</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-white">${s.highest_elo}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Highest ELO</div></div>
+  </div>`);
+}
+
+function renderDistribution(s) {
+  if (!s.distribution || !s.distribution.length) return;
+  const maxCount = Math.max(...s.distribution.map(d=>d.count), 1);
+  let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection"><h2 class="text-sm font-bold text-white mb-3">Rating Distribution</h2><div class="flex flex-wrap gap-3">`;
+  for (const d of s.distribution) {
+    const pct = (d.count / maxCount * 100).toFixed(0);
+    html += `<div class="flex items-center gap-2 w-36"><span class="rank-dot" style="background:${d.color}"></span><span class="text-[10px] text-gray-500 w-20">${d.rank}</span><div class="flex-1 bg-white/5 rounded-full"><div class="dist-bar" style="width:${pct}%;background:${d.color};"></div></div><span class="text-[10px] text-gray-500 w-5 text-right">${d.count}</span></div>`;
+  }
+  html += `</div></div>`;
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+}
+
+function renderManagement() {
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="mgmtSection"><h2 class="text-sm font-bold text-white mb-1">Leaderboard Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Clear or reset all ratings</p>
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-danger text-xs" data-action="clear-leaderboard">Clear Leaderboard</button>
+      <button class="btn text-xs" data-action="reset-leaderboard">Reset Rankings</button>
+    </div>
+  </div>`);
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="tournamentSection"><h2 class="text-sm font-bold text-white mb-1">Tournament Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Create and manage tournaments</p>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <input id="tmtName" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600" placeholder="Tournament name..." style="flex:1;min-width:160px;">
+      <select id="tmtFormat" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+        <option value="1v1">1v1</option><option value="2v2">2v2</option>
+      </select>
+      <button id="createTmtBtn" class="btn btn-pink text-xs">Create</button>
+    </div>
+    <div id="tmtList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+  </div>`);
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-white mb-1">Season Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Close the current season to archive standings and reset ELOs</p>
+    <div class="flex flex-wrap gap-2">
+      <input id="seasonName" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600" placeholder="Season name..." value="Season" style="width:160px;">
+      <button id="closeSeasonBtn" class="btn text-xs" style="border-color:#ffb700;color:#ffb700;">Close Season</button>
+    </div>
+  </div>`);
+}
+
+function renderAddPlayer() {
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="addPlayerSection"><h2 class="text-sm font-bold text-white mb-1">Add Player</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Create a new player account</p>
+    <div class="flex gap-2"><input id="addPlayerInput" class="flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Username..."><button id="addPlayerBtn" class="btn btn-pink text-xs">Add</button></div>
+  </div>`);
+}
+
+function renderPlayerTable() {
+  // Filter + sort
+  let filtered = allPlayers.filter(p => {
+    if (searchQuery && !p.username.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (rankFilter) {
+      const r = allRatingData[p.id];
+      const rank = getRank(r ? r.elo : 0);
+      if (rank[0] !== rankFilter) return false;
+    }
+    if (bannedFilter === 'banned' && !p.is_banned) return false;
+    if (bannedFilter === 'unbanned' && p.is_banned) return false;
+    return true;
+  });
+
+  if (sortField) {
+    filtered.sort((a, b) => {
+      const ra = allRatingData[a.id] || {elo:0,wins:0,losses:0};
+      const rb = allRatingData[b.id] || {elo:0,wins:0,losses:0};
+      let va, vb;
+      if (sortField === 'elo') { va = ra.elo; vb = rb.elo; }
+      else if (sortField === 'wins') { va = ra.wins; vb = rb.wins; }
+      else if (sortField === 'losses') { va = ra.losses; vb = rb.losses; }
+      else if (sortField === 'created_at') { va = new Date(a.created_at); vb = new Date(b.created_at); }
+      else { va = a.username; vb = b.username; }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const pagePlayers = filtered.slice(start, start + pageSize);
+
+  const sortIcon = (f) => sortField === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  let html = `<div class="card p-5 animate-slide-up" id="playerTableCard"><h2 class="text-sm font-bold text-white mb-1">Manage Players</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Inline edit player data</p>`;
+
+  // Search / Filter bar
+  html += `<div class="flex flex-wrap gap-2 mb-4 items-center">
+    <input id="searchInput" class="bg-transparent border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 flex-1 min-w-[160px]" placeholder="Search username..." value="${searchQuery}">
+    <select id="rankFilter" class="bg-transparent border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white"><option value="">All Ranks</option>${RANKS.map(r => `<option value="${r[0]}" ${rankFilter===r[0]?'selected':''}>${r[0]}</option>`).join('')}</select>
+    <select id="bannedFilter" class="bg-transparent border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white"><option value="all" ${bannedFilter==='all'?'selected':''}>All Players</option><option value="unbanned" ${bannedFilter==='unbanned'?'selected':''}>Active Only</option><option value="banned" ${bannedFilter==='banned'?'selected':''}>Banned Only</option></select>
+  </div>`;
+
+  // Sortable column headers
+  const sortable = (label, field) => `<th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-gray-600 uppercase tracking-widest" data-sort="${field}">${label}${sortIcon(field)}</th>`;
+
+  html += `<div class="overflow-x-auto"><table class="w-full"><thead><tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+    <th class="py-3 px-2 w-8 sm:w-10"><input type="checkbox" id="selectAll" class="checkbox"></th>
+    <th class="py-3 px-2 w-8 sm:w-10"></th>
+    <th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-gray-600 uppercase tracking-widest" data-sort="username">Name${sortIcon('username')}</th>
+    ${sortable('ELO','elo')}${sortable('W','wins')}${sortable('L','losses')}
+    <th class="py-3 px-2 text-left text-[10px] font-semibold text-gray-600 uppercase tracking-widest">M</th>
+    <th class="py-3 px-2 text-center text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Rank</th>
+    <th class="py-3 px-2 text-center hidden lg:table-cell text-[10px] font-semibold uppercase tracking-widest" style="color:#e8197d;">Admin</th>
+    <th class="py-3 px-2 text-right"></th>
+  </tr></thead><tbody>`;
+
+  for (const p of pagePlayers) {
+    const r = allRatingData[p.id] || {elo:0,wins:0,losses:0,matches_played:0};
+    const rank = [r.rank_title || getRank(r.elo)[0], 0, r.rank_color || getRank(r.elo)[2]];
+    const isOwner = ownerIds.includes(p.discord_id);
+    const banned = p.is_banned;
+    html += `<tr class="player-row ${banned?'banned-row':''}" style="border-bottom:1px solid rgba(255,255,255,0.04);" data-id="${p.id}">
+      <td class="py-2.5 px-2"><input type="checkbox" class="checkbox player-checkbox" value="${p.id}"></td>
+      <td class="py-2.5 px-2 relative group">
+        ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-sm open-profile" data-id="${p.id}">` : `<div class="avatar-sm open-profile flex items-center justify-center text-[10px] font-bold" style="background:#1c1c1f;color:#333;" data-id="${p.id}">${p.username[0].toUpperCase()}</div>`}
+        <div class="absolute top-0 left-0 mt-8 ml-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <button class="avatar-upload text-xs px-2 py-1.5 rounded" style="background:rgba(232,25,125,0.2);color:#e8197d;border:none;min-width:32px;" data-id="${p.id}">📷</button>
+          <button class="avatar-remove text-xs px-2 py-1.5 rounded" style="background:rgba(239,68,68,0.2);color:#ef4444;border:none;min-width:32px;" data-id="${p.id}">✕</button>
+        </div>
+      </td>
+      <td class="py-2.5 px-2"><span class="open-profile text-sm font-medium cursor-pointer hover:underline" style="color:${banned?'#ef4444':'#fff'}" data-id="${p.id}">${p.username}${banned?' <span class="text-[10px] font-bold" style="color:#ef4444;">[BANNED]</span>':''}</span></td>
+      <td class="py-2.5 px-2">
+        <div class="flex items-center gap-1">
+          <span class="text-sm" style="color:${rank[2]}">${r.elo}</span>
+          <button class="elo-adjust text-xs px-2 py-1.5 rounded transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${p.id}" data-name="${p.username}" data-elo="${r.elo}">±</button>
+        </div>
+      </td>
+      <td class="py-2.5 px-2 text-right text-sm text-white">${r.wins}</td>
+      <td class="py-2.5 px-2 text-right text-sm text-white">${r.losses}</td>
+      <td class="py-2.5 px-2 text-gray-600 text-sm">${r.matches_played}</td>
+      <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><span class="rank-dot" style="background:${rank[2]}"></span><span class="text-[10px] font-semibold whitespace-nowrap" style="color:${rank[2]}">${rank[0]}</span></div></td>
+      <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="text-xs font-bold" style="color:#ffd700;">👑 Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'rgba(232,25,125,0.15)':'transparent'};color:${p.is_admin?'#e8197d':'#444'};border:1px solid ${p.is_admin?'rgba(232,25,125,0.3)':'rgba(255,255,255,0.06)'};">${p.is_admin?'🛡️ Admin':'👤 User'}</button>`}</td>
+      <td class="py-2.5 px-2 text-right"><div class="flex items-center justify-end gap-1">
+        <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'rgba(0,230,118,0.1)':'rgba(239,68,68,0.1)'};color:${banned?'#00e676':'#ef4444'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
+        <button class="save-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${p.id}">Save</button>
+        <button class="delete-btn text-[10px] font-bold w-14 py-1.5 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${p.id}">Delete</button>
+      </div></td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+
+  // Pagination
+  html += `<div class="flex items-center justify-between mt-4 pt-4" style="border-top:1px solid rgba(255,255,255,0.06);">
+    <span class="text-xs text-gray-500">${filtered.length} players · Page ${currentPage} of ${totalPages}</span>
+    <div class="flex gap-1">`;
+  if (currentPage > 1) html += `<button class="page-btn btn text-xs pagination-btn" data-page="${currentPage-1}">‹ Prev</button>`;
+  for (let i = Math.max(1, currentPage-2); i <= Math.min(totalPages, currentPage+2); i++) {
+    html += `<button class="page-btn btn text-xs pagination-btn ${i===currentPage?'btn-pink':''}" data-page="${i}">${i}</button>`;
+  }
+  if (currentPage < totalPages) html += `<button class="page-btn btn text-xs pagination-btn" data-page="${currentPage+1}">Next ›</button>`;
+  html += `</div></div>`;
+
+  // Bulk action bar
+  html += `<div id="bulkBar" class="hidden mt-4 pt-4 flex items-center gap-2" style="border-top:1px solid rgba(255,255,255,0.06);">
+    <span id="bulkCount" class="text-xs text-gray-500 mr-2">0 selected</span>
+    <button class="btn btn-danger text-xs" data-bulk="reset">Reset Stats</button>
+    <button class="btn btn-danger text-xs" data-bulk="delete">Delete</button>
+    <button class="btn text-xs" data-bulk="clear-avatar">Clear Avatar</button>
+  </div>`;
+
+  html += `</div>`;
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+  wirePlayerTable();
+  wireSelectAll();
+  wireBulkBar();
+  wireSort();
+  wireFilters();
+  wirePagination();
+  wireEloModal();
+  wireAvatarUpload();
+  wireBanToggles();
+  wireProfileClicks();
+}
+
+function renderMatches(matches) {
+  let html = `<div class="card p-5 mt-5 animate-slide-up" id="matchesSection"><h2 class="text-sm font-bold text-white mb-1">Recent Matches</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Last 30 matches</p>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <th class="py-3 px-3 text-left">Format</th><th class="py-3 px-3 text-left">Team A</th><th class="py-3 px-3 text-left">Score</th><th class="py-3 px-3 text-left">Team B</th><th class="py-3 px-3 text-left">Winner</th><th class="py-3 px-3 text-left hidden md:table-cell">Date</th><th class="py-3 px-3 text-right"></th>
+    </tr></thead><tbody>`;
+  for (const m of matches) {
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td class="py-2.5 px-3 text-[10px] font-bold text-gray-500">${m.format}</td>
+      <td class="py-2.5 px-3 text-sm text-white">${m.team_a_name}</td>
+      <td class="py-2.5 px-3 text-sm font-bold" style="color:${m.winner_name===m.team_a_name?'#00e676':'#ef4444'}">${m.score_a} : ${m.score_b}</td>
+      <td class="py-2.5 px-3 text-sm text-white">${m.team_b_name}</td>
+      <td class="py-2.5 px-3 text-[10px] font-semibold" style="color:${m.winner_name==='Draw'?'#666':'#00e676'}">${m.winner_name||'—'}</td>
+      <td class="py-2.5 px-3 text-xs text-gray-600 hidden md:table-cell">${new Date(m.played_at).toLocaleDateString()}</td>
+      <td class="py-2.5 px-3 text-right"><button class="match-delete text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${m.id}">Remove</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table></div></div>';
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+  document.querySelectorAll('.match-delete').forEach(btn => btn.addEventListener('click', async () => {
+    await showModal('Delete Match','Remove this match permanently?',true);
+    const r = await fetch('/api/admin/matches/'+btn.dataset.id,{method:'DELETE'});
+    if (r.ok) { toast('Match deleted.','success'); location.reload(); } else toast('Failed.','error');
+  }));
+}
+
+function renderAuditLog(log) {
+  let html = `<div class="card p-5 mt-5 animate-slide-up" id="auditSection"><div class="flex items-center justify-between mb-1">
+    <h2 class="text-sm font-bold text-white">Audit Log</h2>
+    <button id="clearAuditBtn" class="btn btn-danger text-xs">Clear Log</button>
+  </div><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">All admin actions recorded</p>`;
+  if (!log.length) { html += '<p class="text-xs text-gray-600">No entries yet.</p>'; }
+  else {
+    html += `<div class="overflow-x-auto max-h-80 overflow-y-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <th class="py-2 px-3 text-left">Time</th><th class="py-2 px-3 text-left">Admin</th><th class="py-2 px-3 text-left">Action</th><th class="py-2 px-3 text-left hidden sm:table-cell">Target</th><th class="py-2 px-3 text-left hidden md:table-cell">Details</th>
+    </tr></thead><tbody>`;
+    for (const e of log) {
+      const date = new Date(e.created_at);
+      const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+        <td class="py-1.5 px-3 text-[10px] text-gray-600 whitespace-nowrap">${timeStr}</td>
+        <td class="py-1.5 px-3 text-xs text-white">${e.admin_name}</td>
+        <td class="py-1.5 px-3 text-xs" style="color:${e.action.includes('banned')||e.action.includes('delete')?'#ef4444':e.action.includes('granted')?'#00e676':'#ccc'}">${e.action}</td>
+        <td class="py-1.5 px-3 text-xs text-gray-400 hidden sm:table-cell">${e.target_name||'—'}</td>
+        <td class="py-1.5 px-3 text-[10px] text-gray-600 hidden md:table-cell max-w-[200px] truncate">${e.details||'—'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+  const clearBtn = $('clearAuditBtn');
+  if (clearBtn) clearBtn.addEventListener('click', async () => {
+    await showModal('Clear Audit Log','Delete all audit log entries permanently?',true);
+    const r = await fetch('/api/admin/clear-audit-log',{method:'POST'});
+    if (r.ok) { toast('Audit log cleared.','success'); location.reload(); } else toast('Failed.','error');
+  });
+}
+
+function wireGlobal() {
+  document.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', async () => {
+    const a = btn.dataset.action;
+    if (a === 'clear-leaderboard') { await showModal('Clear Leaderboard','Delete all ratings permanently.',true); const r = await fetch('/api/admin/clear-leaderboard',{method:'POST'}); r.ok ? (toast('Leaderboard cleared.','success'),location.reload()) : toast('Failed.','error'); }
+    else if (a === 'reset-leaderboard') { await showModal('Reset Rankings','Set all ELO/wins/losses to zero.',true); const r = await fetch('/api/admin/reset-leaderboard',{method:'POST'}); r.ok ? (toast('Rankings reset.','success'),location.reload()) : toast('Failed.','error'); }
+  }));
+  const addInput = $('addPlayerInput'), addBtn = $('addPlayerBtn');
+  if (addInput && addBtn) {
+    async function add() { const name = addInput.value.trim(); if (!name) return; try { const r = await fetch('/api/players',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:name})}); if (r.ok) { toast('Player created.','success'); addInput.value = ''; location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); } } catch { toast('Error.','error'); } }
+    addBtn.addEventListener('click', add);
+    addInput.addEventListener('keydown', e => { if (e.key==='Enter') add(); });
+  }
+
+  // Tournament management
+  const createTmtBtn = $('createTmtBtn');
+  if (createTmtBtn) createTmtBtn.addEventListener('click', async () => {
+    const name = $('tmtName').value.trim();
+    const format = $('tmtFormat').value;
+    if (!name) { toast('Enter a name.','error'); return; }
+    const r = await fetch('/api/tournaments', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,format}) });
+    if (r.ok) { const d = await r.json(); toast(`Tournament created: ${d.name}`,'success'); loadTmtList(); $('tmtName').value=''; } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+  });
+
+  async function loadTmtList() {
+    const list = await (await fetch('/api/tournaments')).json();
+    const el = $('tmtList');
+    el.innerHTML = list.slice(0,20).map(t => {
+      const canStart = t.status === 'pending';
+      const canAdd = t.status === 'pending';
+      const canComplete = t.status === 'active';
+      return `<div class="flex items-center justify-between text-xs card px-3 py-2" style="border-color:rgba(255,255,255,0.04);">
+        <span class="text-white" style="min-width:120px;">${t.name}</span>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-gray-600">${t.status}</span>
+          ${canAdd ? `<button class="btn text-xs px-3 py-2 add-players-btn" data-id="${t.id}" style="color:#ffb700;border-color:rgba(255,183,0,0.3);">+Players</button>` : ''}
+          ${canStart ? `<button class="btn text-xs px-3 py-2 start-tmt-btn" data-id="${t.id}" style="color:#00e676;border-color:rgba(0,230,118,0.3);">Start</button>` : ''}
+          ${canComplete ? `<button class="btn text-xs px-3 py-2 complete-tmt-btn" data-id="${t.id}" style="color:#e8197d;border-color:rgba(232,25,125,0.3);">Complete</button>` : ''}
+          <a href="/tournament/${t.id}" class="btn text-xs px-3 py-2">View</a>
+          <button class="btn text-xs px-3 py-2 delete-tmt-btn" data-id="${t.id}" style="color:#ef4444;border-color:rgba(239,68,68,0.3);">X</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  loadTmtList();
+
+  // Tournament action buttons
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.classList.contains('start-tmt-btn')) {
+      const r = await fetch(`/api/tournaments/${id}/start`, {method:'POST'});
+      if (r.ok) { toast('Tournament started!','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+    } else if (btn.classList.contains('complete-tmt-btn')) {
+      await showModal('Complete Tournament','Mark tournament as completed?', true);
+      const r = await fetch(`/api/tournaments/${id}/complete`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+      if (r.ok) { toast('Tournament completed!','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+    } else if (btn.classList.contains('delete-tmt-btn')) {
+      await showModal('Delete Tournament','Delete this tournament permanently?', true);
+      const r = await fetch(`/api/tournaments/${id}`, {method:'DELETE'});
+      if (r.ok) { toast('Deleted.','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+    } else if (btn.classList.contains('add-players-btn')) {
+      const playerNames = allPlayers.map(p => p.username).join('\n');
+      const input = prompt('Enter player usernames (comma or newline separated):');
+      if (!input) return;
+      const names = input.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      const ids = names.map(n => { const p = allPlayers.find(p => p.username.toLowerCase() === n.toLowerCase()); return p ? p.id : null; }).filter(Boolean);
+      if (ids.length === 0) { toast('No matching players found.','error'); return; }
+      const r = await fetch(`/api/tournaments/${id}/add-players`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_ids: ids})});
+      if (r.ok) { toast(`${ids.length} players added.`,'success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+    }
+  });
+
+  // Season management
+  const closeSeasonBtn = $('closeSeasonBtn');
+  if (closeSeasonBtn) closeSeasonBtn.addEventListener('click', async () => {
+    const name = $('seasonName').value.trim() || 'Season';
+    await showModal('Close Season',`Archive "${name}" and reset all ELOs?`, true);
+    const r = await fetch('/api/admin/close-season', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    if (r.ok) { toast('Season closed.','success'); location.reload(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
+  });
+}
+
+function wirePlayerTable() {
+  document.querySelectorAll('.save-btn').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const row = btn.closest('tr');
+    const inputs = row ? row.querySelectorAll('input[data-field]') : [];
+    const body = {};
+    for (const inp of inputs) {
+      const v = inp.type==='number'?parseInt(inp.value):inp.value;
+      if (inp.dataset.field==='username'&&v) body.username=v;
+      if (inp.dataset.field==='elo'&&!isNaN(v)) body.elo=v;
+      if (inp.dataset.field==='wins'&&!isNaN(v)) body.wins=v;
+      if (inp.dataset.field==='losses'&&!isNaN(v)) body.losses=v;
+    }
+    (await fetch('/api/players/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).ok ? (toast('Saved.','success'),location.reload()) : toast('Failed.','error');
+  }));
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    let confirm = false;
+    btn.addEventListener('click', async () => {
+      if (!confirm) { confirm = true; btn.textContent = 'Confirm?'; btn.style.background = '#dc2626'; setTimeout(() => { if (confirm) { confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; } }, 4000); return; }
+      const id = btn.dataset.id;
+      const r = await fetch('/api/players/'+id,{method:'DELETE'});
+      if (r.ok) { toast('Deleted.','success'); location.reload(); } else { toast('Failed.','error'); confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; }
+    });
+  });
+  document.querySelectorAll('.admin-toggle').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const r = await fetch(`/api/admin/players/${id}/toggle-admin`, {method:'POST'});
+    if (r.ok) { const d = await r.json(); toast(`${d.username} is now ${d.is_admin?'Admin':'User'}`, 'success'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+  }));
+}
+
+function wireSort() {
+  document.querySelectorAll('[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const field = th.dataset.sort;
+    if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortField = field; sortDir = 'asc'; }
+    currentPage = 1;
+    refreshTable();
+  }));
+}
+
+function wireFilters() {
+  const search = $('searchInput');
+  const rank = $('rankFilter');
+  const banned = $('bannedFilter');
+  let debounce;
+  if (search) search.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(() => { searchQuery = search.value; currentPage = 1; refreshTable(); }, 200); });
+  if (rank) rank.addEventListener('change', () => { rankFilter = rank.value; currentPage = 1; refreshTable(); });
+  if (banned) banned.addEventListener('change', () => { bannedFilter = banned.value; currentPage = 1; refreshTable(); });
+}
+
+function wirePagination() {
+  document.querySelectorAll('.page-btn').forEach(btn => btn.addEventListener('click', () => { currentPage = parseInt(btn.dataset.page); refreshTable(); }));
+}
+
+function wireSelectAll() {
+  const selAll = $('selectAll');
+  if (!selAll) return;
+  selAll.addEventListener('change', () => { document.querySelectorAll('.player-checkbox').forEach(cb => cb.checked = selAll.checked); updateBulkBar(); });
+  document.addEventListener('change', e => { if (e.target.classList.contains('player-checkbox')) updateBulkBar(); });
+}
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.player-checkbox:checked');
+  const bar = $('bulkBar'), count = $('bulkCount');
+  if (!bar || !count) return;
+  if (checked.length === 0) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  count.textContent = checked.length + ' selected';
+}
+
+function wireBulkBar() {
+  document.querySelectorAll('[data-bulk]').forEach(btn => btn.addEventListener('click', async () => {
+    const action = btn.dataset.bulk;
+    const ids = Array.from(document.querySelectorAll('.player-checkbox:checked')).map(cb => cb.value);
+    if (!ids.length) return;
+    let endpoint = '';
+    if (action === 'reset') { await showModal('Reset Stats',`Reset stats for ${ids.length} player(s)?`,true); endpoint = '/api/admin/bulk/reset-stats'; }
+    else if (action === 'delete') { await showModal('Delete Players',`Delete ${ids.length} player(s) permanently?`,true); endpoint = '/api/admin/bulk/delete'; }
+    else if (action === 'clear-avatar') { await showModal('Clear Avatar',`Remove avatar for ${ids.length} player(s)?`,false); endpoint = '/api/admin/bulk/clear-avatar'; }
+    if (!endpoint) return;
+    try {
+      const r = await fetch(endpoint,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_ids:ids})});
+      if (r.ok) { toast('Done.','success'); location.reload(); } else { try { const errData = await r.json(); toast(errData.detail||'Failed ('+r.status+')','error'); } catch(_) { toast('Failed ('+r.status+')','error'); } }
+    } catch(netErr) { toast('Network error: '+netErr.message,'error'); console.error(netErr); }
+  }));
+}
+
+function wireEloModal() {
+  let targetId = null;
+  document.querySelectorAll('.elo-adjust').forEach(btn => btn.addEventListener('click', () => {
+    targetId = btn.dataset.id;
+    $('eloModalTitle').textContent = `Adjust ELO for ${btn.dataset.name}`;
+    $('eloModalPlayer').textContent = `Current ELO: ${btn.dataset.elo}`;
+    $('eloAmount').value = '';
+    $('eloReason').value = '';
+    $('eloModal').classList.remove('hidden');
+    $('eloModal').classList.add('flex');
+  }));
+  const cancel = $('eloCancel'), confirm = $('eloConfirm');
+  if (cancel) cancel.addEventListener('click', () => { $('eloModal').classList.add('hidden'); $('eloModal').classList.remove('flex'); });
+  if (confirm) confirm.addEventListener('click', async () => {
+    const amount = parseInt($('eloAmount').value);
+    const reason = $('eloReason').value.trim();
+    if (isNaN(amount)) { toast('Enter a valid number.','error'); return; }
+    if (!reason) { toast('Reason is required.','error'); return; }
+    const r = await fetch(`/api/admin/players/${targetId}/adjust-elo`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount, reason})});
+    if (r.ok) { toast('ELO adjusted.','success'); $('eloModal').classList.add('hidden'); $('eloModal').classList.remove('flex'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('eloModal').classList.add('hidden'); $('eloModal').classList.remove('flex'); }});
+}
+
+function wireAvatarUpload() {
+  let targetId = null;
+  document.querySelectorAll('.avatar-upload').forEach(btn => btn.addEventListener('click', () => {
+    targetId = btn.dataset.id;
+    $('avatarModalTitle').textContent = 'Upload Avatar';
+    $('avatarModalPlayer').textContent = `Player ID: ${targetId}`;
+    $('avatarFileInput').value = '';
+    $('avatarModal').classList.remove('hidden');
+    $('avatarModal').classList.add('flex');
+  }));
+  document.querySelectorAll('.avatar-remove').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    await showModal('Remove Avatar','Remove this player\'s avatar?',false);
+    const r = await fetch(`/api/admin/players/${id}/avatar`, {method:'DELETE'});
+    if (r.ok) { toast('Avatar removed.','success'); location.reload(); } else toast('Failed.','error');
+  }));
+  const cancel = $('avatarCancel'), confirm = $('avatarConfirm');
+  if (cancel) cancel.addEventListener('click', () => { $('avatarModal').classList.add('hidden'); $('avatarModal').classList.remove('flex'); });
+  if (confirm) confirm.addEventListener('click', async () => {
+    const file = $('avatarFileInput').files[0];
+    if (!file) { toast('Select a file.','error'); return; }
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch(`/api/admin/players/${targetId}/avatar`, {method:'POST', body:fd});
+    if (r.ok) { toast('Avatar uploaded.','success'); $('avatarModal').classList.add('hidden'); $('avatarModal').classList.remove('flex'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('avatarModal').classList.add('hidden'); $('avatarModal').classList.remove('flex'); }});
+}
+
+function wireBanToggles() {
+  document.querySelectorAll('.ban-btn').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    await showModal('Toggle Ban','Change this player\'s ban status?',true);
+    const r = await fetch(`/api/admin/players/${id}/toggle-ban`, {method:'POST'});
+    if (r.ok) { const d = await r.json(); toast(`${d.username} ${d.is_banned?'banned':'unbanned'}`, 'success'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+  }));
+}
+
+function wireProfileClicks() {
+  document.querySelectorAll('.open-profile').forEach(el => el.addEventListener('click', async () => {
+    const id = el.dataset.id;
+    openProfilePanel(id);
+  }));
+}
+
+async function openProfilePanel(playerId) {
+  const panel = $('profilePanel'), backdrop = $('profileBackdrop');
+  panel.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm py-20">Loading...</div>';
+  panel.classList.add('open'); backdrop.classList.add('open');
+
+  try {
+    const [pd, matchesRes] = await Promise.all([
+      fetch('/api/players/'+playerId).then(r => r.json()),
+      fetch('/api/matches?limit=50').then(r => r.json()),
+    ]);
+
+    const rating = pd.ratings.find(r=>r.format==='1v1')||{elo:0,wins:0,losses:0,matches_played:0};
+    const rank = [rating.rank_title || getRank(rating.elo)[0], 0, rating.rank_color || getRank(rating.elo)[2]];
+    const winRate = rating.matches_played > 0 ? (rating.wins / rating.matches_played * 100).toFixed(0) : '—';
+    const rankIcon = rank[0].toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+
+    // Find matches this player was in
+    function isPlayerInTeam(pn, tn) { return tn ? tn.split(' + ').some(n => n.trim() === pn) : false; }
+    const playerMatches = matchesRes.filter(m => isPlayerInTeam(pd.username, m.team_a_name) || isPlayerInTeam(pd.username, m.team_b_name));
+
+    let html = `<div class="p-6" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div class="flex items-center gap-4 mb-4">
+        ${pd.avatar_url ? `<img src="${pd.avatar_url}" class="w-16 h-16 rounded-full object-cover" style="border:2px solid ${rank[2]}">` : `<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold" style="background:#1c1c1f;color:#333;border:2px solid ${rank[2]};">${pd.username[0].toUpperCase()}</div>`}
+        <div><h2 class="text-lg font-bold text-white">${pd.username}</h2><span class="text-xs font-semibold" style="color:${rank[2]}">${rank[0]}</span></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:${rank[2]}">${rating.elo}</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">ELO</div></div>
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:#00e676">${winRate}%</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">Win Rate</div></div>
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold text-white">${rating.matches_played}</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">Matches</div></div>
+      </div>
+      <div class="text-[10px] text-gray-600">Joined ${new Date(pd.created_at).toLocaleDateString()}</div>
+    </div>`;
+
+    if (playerMatches.length) {
+      html += `<div class="p-4"><h3 class="text-xs font-bold text-white mb-3 uppercase tracking-widest">Recent Matches</h3>`;
+      for (const m of playerMatches.slice(0, 20)) {
+        const isTeamA = isPlayerInTeam(pd.username, m.team_a_name);
+        const won = (isTeamA && m.winner_name === m.team_a_name) || (!isTeamA && m.winner_name === m.team_b_name) || isPlayerInTeam(pd.username, m.winner_name);
+        const score = isTeamA ? `${m.score_a} : ${m.score_b}` : `${m.score_b} : ${m.score_a}`;
+        html += `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid rgba(255,255,255,0.04);">
+          <span class="text-xs" style="color:${won?'#00e676':'#ef4444'}">${won?'W':'L'}</span>
+          <span class="text-xs text-gray-400">${m.format}</span>
+          <span class="text-xs font-bold text-white">${score}</span>
+          <span class="text-[10px] text-gray-600">${new Date(m.played_at).toLocaleDateString()}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    } else {
+      html += `<div class="p-4 text-center text-xs text-gray-600">No matches yet.</div>`;
+    }
+
+    panel.innerHTML = `<div class="p-4 text-right"><button id="closePanel" class="btn text-xs">✕ Close</button></div>${html}`;
+    $('closePanel')?.addEventListener('click', closeProfilePanel);
+  } catch {
+    panel.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">Failed to load.</div>';
+  }
+}
+
+function closeProfilePanel() {
+  $('profilePanel').classList.remove('open');
+  $('profileBackdrop').classList.remove('open');
+}
+$('profileBackdrop').addEventListener('click', closeProfilePanel);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProfilePanel(); });
+
+function refreshTable() {
+  const card = $('playerTableCard');
+  if (card) card.remove();
+  renderPlayerTable();
+}
+
+loadAdmin();
+</script>
+{% endblock %}

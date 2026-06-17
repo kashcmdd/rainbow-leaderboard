@@ -1,0 +1,4 @@
+<svg width="48" height="56" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
+  <path d="M20 48 C6 40 2 28 8 18 C10 24 14 24 14 24 C12 14 16 6 20 2 C20 10 24 12 26 10 C30 18 32 28 28 38 C26 30 24 30 24 30 C28 40 26 48 20 48Z" fill="#ff5500" stroke="#ff8844" stroke-width="1"/>
+  <text x="20" y="34" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="system-ui,sans-serif">9</text>
+</svg>

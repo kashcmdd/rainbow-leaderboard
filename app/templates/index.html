@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-col items-center text-center py-10 sm:py-16 animate-slide-up opacity-0 stagger-1">
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white mb-3">clukzers<span style="color:#e8197d">LB</span></h1>
+    <p class="text-sm text-gray-500 uppercase tracking-widest mb-10">1v1 Gaming Leaderboard &amp; Stats Tracker</p>
+
+    <div class="flex gap-3">
+        <a href="/leaderboard" class="btn btn-pink px-8 py-3 text-sm">View Leaderboard</a>
+        {% if request.session.get("user") %}
+        <a href="/report" class="btn px-8 py-3 text-sm">Report Match</a>
+        {% else %}
+        <a href="/auth/login" class="btn px-8 py-3 text-sm">Sign In</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 animate-slide-up opacity-0 stagger-2">
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="totalPlayers">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Total Players</div>
+    </div>
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="totalMatches">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Matches Played</div>
+    </div>
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="topPlayer">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Top Player</div>
+    </div>
+</div>
+
+<div class="mt-8 animate-slide-up opacity-0 stagger-3">
+    <div class="card p-5">
+        <h2 class="text-sm font-bold text-white mb-1">Activity Feed</h2>
+        <p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Recent matches &amp; new players</p>
+        <div id="activityFeed" class="space-y-2 min-h-[100px]">
+            <div class="text-xs text-gray-600 animate-pulse">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadStats() {
+    const [playersRes, matchesRes, lbRes, activityRes] = await Promise.all([
+        fetch('/api/players'),
+        fetch('/api/matches?limit=100'),
+        fetch('/api/leaderboard/1v1'),
+        fetch('/api/activity'),
+    ]);
+    const players = await playersRes.json();
+    const matches = await matchesRes.json();
+    const lb = await lbRes.json();
+    document.getElementById('totalPlayers').textContent = players.length;
+    document.getElementById('totalMatches').textContent = matches.length;
+    if (lb.length > 0) {
+        document.getElementById('topPlayer').innerHTML = `<a href="/player/${lb[0].player_id}" class="hover:text-[#e8197d] transition-colors">${lb[0].name}</a>`;
+    }
+    const activity = await activityRes.json();
+    const feed = document.getElementById('activityFeed');
+    if (activity.length === 0) {
+        feed.innerHTML = '<div class="text-xs text-gray-600">No activity yet.</div>';
+    } else {
+        feed.innerHTML = activity.map(a => {
+            const icon = a.type === 'match' ? '<span style="color:#e8197d">●</span>' : '<span style="color:#00e676">+</span>';
+            return `<div class="flex items-start gap-3 py-2" style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <div class="mt-0.5 text-xs">${icon}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs text-white truncate">${a.message}</div>
+                    ${a.detail ? `<div class="text-[11px] sm:text-[10px] text-gray-600">${a.detail}</div>` : ''}
+                </div>
+                <div class="text-[11px] sm:text-[10px] text-gray-600 whitespace-nowrap">${a.time_ago}</div>
+            </div>`;
+        }).join('');
+    }
+}
+loadStats();
+</script>
+{% endblock %}

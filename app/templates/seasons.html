@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-extrabold text-white mb-6">Seasons</h1>
+
+<div id="seasonsContent">
+  <div class="card p-8 animate-pulse"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div></div>
+</div>
+
+<script>
+async function loadSeasons() {
+  const seasons = await (await fetch('/api/leaderboard/seasons/list')).json();
+  let html = '';
+  for (const s of seasons) {
+    const isActive = s.status === 'active';
+    html += `<div class="card p-5 mb-4 season-card" data-id="${s.id}" style="cursor:pointer;transition:all 0.2s ease;">
+      <div class="flex items-start sm:items-center justify-between">
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-bold text-white truncate">${s.name}</h2>
+          <p class="text-[10px] text-gray-600 mt-1">${new Date(s.start_date).toLocaleDateString()} — ${s.end_date?new Date(s.end_date).toLocaleDateString():'Present'}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] font-semibold uppercase tracking-widest" style="color:${isActive?'#00e676':'#666'}">${s.status}</span>
+          <span class="text-xs text-gray-600 expand-icon">▶</span>
+        </div>
+      </div>
+      <div class="season-standings mt-4" id="standings-${s.id}" style="display:none;">
+        <div class="text-xs text-gray-600 animate-pulse">Loading...</div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('seasonsContent').innerHTML = html || '<p class="text-xs text-gray-600">No seasons yet.</p>';
+
+  document.querySelectorAll('.season-card').forEach(card => {
+    card.addEventListener('click', async function() {
+      const id = this.dataset.id;
+      const body = this.querySelector('.season-standings');
+      const icon = this.querySelector('.expand-icon');
+      if (body.style.display === 'none') {
+        body.style.display = 'block';
+        icon.textContent = '▼';
+        if (body.dataset.loaded) return;
+        try {
+          const snap = await (await fetch(`/api/leaderboard/seasons/${id}`)).json();
+          let table = '<div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);"><th class="py-2 px-2 w-10">#</th><th class="py-2 px-2 text-left">Player</th><th class="py-2 px-2 text-left">ELO</th><th class="py-2 px-2 text-left">Rank</th><th class="py-2 px-2 text-left hidden sm:table-cell">W</th><th class="py-2 px-2 text-left hidden sm:table-cell">L</th></tr></thead><tbody>';
+          for (const p of snap.standings) {
+            table += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td class="py-1.5 px-2 text-xs text-gray-600">${p.position}</td><td class="py-1.5 px-2 text-sm text-white">${p.player_name}</td><td class="py-1.5 px-2 text-sm" style="color:${p.rank_color}">${p.elo}</td><td class="py-1.5 px-2 text-[10px] font-semibold" style="color:${p.rank_color}">${p.rank_title}</td><td class="py-1.5 px-2 text-xs text-white hidden sm:table-cell">${p.wins}</td><td class="py-1.5 px-2 text-xs text-white hidden sm:table-cell">${p.losses}</td></tr>`;
+          }
+          table += '</tbody></table></div>';
+          body.innerHTML = table;
+          body.dataset.loaded = '1';
+        } catch {
+          body.innerHTML = '<div class="text-xs text-red-400">Failed to load standings.</div>';
+        }
+      } else {
+        body.style.display = 'none';
+        icon.textContent = '▶';
+      }
+    });
+  });
+}
+
+loadSeasons();
+</script>
+{% endblock %}
