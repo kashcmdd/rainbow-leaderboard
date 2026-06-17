@@ -4,20 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>clukzersLB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-                }
-            }
-        }
-    </script>
     <style>
         * { scrollbar-width: thin; scrollbar-color: #2a2a2e #0d0d0f; }
         *::-webkit-scrollbar { width: 6px; }
@@ -66,9 +56,7 @@
                 {% if request.session.get("user") %}
                     <a href="/report" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Report</a>
                     {% if request.session.get("user").get("is_admin") %}
-                        <a href="/admin" id="adminNavLink" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Admin</a>
-                    {% else %}
-                        <a href="/admin" id="adminNavLink" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5" style="display:none;">Admin</a>
+                        <a href="/admin" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Admin</a>
                     {% endif %}
                     <div class="h-5 w-px shrink-0" style="background:rgba(255,255,255,0.08); margin:0 4px;"></div>
                     <a href="/profile" class="text-xs font-medium text-gray-400 hover:text-white transition-all whitespace-nowrap px-2 py-2">{{ request.session.get("user").get("username") }}</a>
@@ -79,14 +67,28 @@
             </div>
         </div>
     </nav>
+    <script>
+    // CSRF token setup — fetch on page load for all mutating requests
+    let csrfToken = null;
+    fetch('/api/csrf/token').then(r => r.json()).then(d => {
+        csrfToken = d.csrf_token;
+    }).catch(() => {});
+
+    // Intercept fetch to add CSRF header on mutating requests
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts = {}) {
+        if (!opts.method || ['POST', 'PUT', 'PATCH', 'DELETE'].includes(opts.method.toUpperCase())) {
+            if (csrfToken && !opts.headers?.['X-CSRF-Bypass']) {
+                opts.headers = opts.headers || {};
+                opts.headers['X-CSRF-Token'] = csrfToken;
+            }
+        }
+        return origFetch.call(this, url, opts);
+    };
+    </script>
     <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-12 animate-fade-in">
         {% block content %}{% endblock %}
     </main>
-    <script>
-    fetch('/api/admin/check').then(r => r.json()).then(d => {
-        const el = document.getElementById('adminNavLink');
-        if (el) el.style.display = d.is_admin ? '' : 'none';
-    }).catch(() => {});
-    </script>
+
 </body>
 </html>

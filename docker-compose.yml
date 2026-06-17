@@ -4,7 +4,7 @@ services:
     container_name: rainbow-leaderboard-db
     environment:
       POSTGRES_USER: rainbow
-      POSTGRES_PASSWORD: rainbow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbow}
       POSTGRES_DB: rainbow
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -20,12 +20,10 @@ services:
     container_name: rainbow-leaderboard-api
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
-      - SECRET_KEY=rainbow-leaderboard-session-key-2024
-      - DISCORD_CLIENT_ID=1515200841131495564
-      - DISCORD_CLIENT_SECRET=Zp6smO0qqzqxOtudVg2s2eBUfqqXQJ52
-      - DISCORD_REDIRECT_URI=http://3.140.184.93:8000/auth/callback
+      - DATABASE_URL=postgresql+asyncpg://rainbow:${POSTGRES_PASSWORD:-rainbow}@db:5432/rainbow
     depends_on:
       db:
         condition: service_healthy

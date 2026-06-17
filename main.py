@@ -9,7 +9,8 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import init_db, engine
-from app.routers import players, matches, leaderboard, pages, auth, admin, tournaments, activity
+from app.routers import players, matches, leaderboard, pages, auth, admin, tournaments, activity, stats
+from app.csrf import router as csrf_router
 
 scheduler = AsyncIOScheduler()
 
@@ -145,3 +146,8 @@ app.include_router(pages.router)
 app.include_router(admin.router)
 app.include_router(tournaments.router)
 app.include_router(activity.router)
+app.include_router(stats.router)
+app.include_router(csrf_router)
+
+# Make csrf_input available in all template environments
+

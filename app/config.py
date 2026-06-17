@@ -20,12 +20,14 @@ class Settings(BaseSettings):
     }
     discord_client_id: str = ""
     discord_client_secret: str = ""
-    discord_redirect_uri: str = "http://100.114.30.40:8000/auth/callback"
+    discord_redirect_uri: str = "http://18.117.227.140:8000/auth/callback"
     admin_discord_ids: list[str] = ["1415420243836407878"]
     secret_key: str = "change-me-to-a-random-string"
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 settings = Settings()

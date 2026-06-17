@@ -95,12 +95,21 @@ async def _update_player_ratings(
 
 @router.post("")
 async def report_match(body: MatchReport, request: Request, db: AsyncSession = Depends(get_db)):
+    session_user = request.session.get("user")
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+
+    # Check if reporter is banned
+    reporter_result = await db.execute(select(Player).where(Player.discord_id == session_user["id"]))
+    reporter_player = reporter_result.scalar_one_or_none()
+    if reporter_player and reporter_player.is_banned:
+        raise HTTPException(status_code=403, detail="You are banned from reporting matches")
+
     winner = body.infer_winner()
     if winner is None:
         raise HTTPException(status_code=400, detail="Match cannot be a draw")
 
-    session_user = request.session.get("user")
-    reporter_did = session_user["id"] if session_user else None
+    reporter_did = session_user["id"]
 
     team_a = await _get_or_create_team(
         db, body.format,
@@ -222,6 +231,7 @@ async def report_match(body: MatchReport, request: Request, db: AsyncSession = D
 @router.get("", response_model=list[MatchOut])
 async def list_matches(
     format: Optional[str] = None,
+    player_id: Optional[str] = None,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
@@ -232,6 +242,16 @@ async def list_matches(
 
     if format:
         q = q.where(Match.format == format)
+
+    if player_id:
+        q = q.where(
+            Match.team_a_id.in_(
+                select(TeamMember.team_id).where(TeamMember.player_id == player_id)
+            ) |
+            Match.team_b_id.in_(
+                select(TeamMember.team_id).where(TeamMember.player_id == player_id)
+            )
+        )
 
     result = await db.execute(q)
     matches = result.scalars().all()

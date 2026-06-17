@@ -5,14 +5,16 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
+from urllib.parse import urlencode
 
 from app.config import settings
 from app.database import get_db
 from app.models import Player, Rating
+from app.csrf import csrf_input
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
-templates.env.globals["admin_discord_ids"] = settings.admin_discord_ids
+templates.env.globals["csrf_input"] = csrf_input
 
 DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize"
 DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
@@ -40,8 +42,7 @@ async def discord_login():
         "response_type": "code",
         "scope": "identify",
     }
-    qs = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(url=f"{DISCORD_AUTH_URL}?{qs}", status_code=302)
+    return RedirectResponse(url=f"{DISCORD_AUTH_URL}?{urlencode(params)}", status_code=302)
 
 
 @router.get("/callback")

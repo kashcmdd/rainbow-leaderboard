@@ -229,28 +229,34 @@ async def get_player_history(
         if not match:
             continue
 
-        def get_team_name(team_id):
-            team = match.team_a if team_id == match.team_a_id else match.team_b
-            return " + ".join(
-                mem.player.username for mem in (team.members if team else [])
-            ) if team else "Unknown"
+        match_result = await db.execute(
+            select(Match).options(
+                selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
+                selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
+            ).where(Match.id == e.match_id)
+        )
+        match = match_result.scalar_one_or_none()
+        if not match:
+            continue
 
-        # Determine opponent
+        def team_name(team):
+            return " + ".join(m.player.username for m in team.members) if team and team.members else "Unknown"
+
+        a_name = team_name(match.team_a)
+        b_name = team_name(match.team_b)
+
+        # Determine opponent and result for this player
         opponent = None
         result_label = None
-        if match.team_a_id:
-            for team_id in [match.team_a_id, match.team_b_id]:
-                team = match.team_a if team_id == match.team_a_id else match.team_b
-                if team:
-                    member_ids = [str(m.player_id) for m in team.members]
-                    if player_id in member_ids:
-                        other_team = match.team_b if team_id == match.team_a_id else match.team_a
-                        if other_team:
-                            opponent = " + ".join(m.player.username for m in other_team.members)
-                        if match.winner_team_id == team_id:
-                            result_label = "win"
-                        else:
-                            result_label = "loss"
+        if match.team_a_id and match.team_b_id:
+            member_ids_a = {str(m.player_id) for m in match.team_a.members}
+            member_ids_b = {str(m.player_id) for m in match.team_b.members}
+            if player_id in member_ids_a:
+                opponent = b_name
+                result_label = "win" if match.winner_team_id == match.team_a_id else "loss"
+            elif player_id in member_ids_b:
+                opponent = a_name
+                result_label = "win" if match.winner_team_id == match.team_b_id else "loss"
 
         out.append({
             "match_id": str(e.match_id),
@@ -259,9 +265,9 @@ async def get_player_history(
             "elo_before": e.elo_before,
             "elo_after": e.elo_after,
             "delta": e.elo_after - e.elo_before,
-            "score_a": match.score_a if match else 0,
-            "score_b": match.score_b if match else 0,
-            "format": match.format if match else format,
+            "score_a": match.score_a,
+            "score_b": match.score_b,
+            "format": match.format,
             "timestamp": e.changed_at.isoformat(),
         })
     return out

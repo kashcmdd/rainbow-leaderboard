@@ -72,7 +72,7 @@ function isPlayerInTeam(playerName, teamName) {
     return teamName.split(' + ').some(n => n.trim() === playerName);
 }
 
-const IS_ADMIN = {% if request.session.get("user") and (request.session.get("user").get("id") in admin_discord_ids or request.session.get("user").get("is_admin")) %}true{% else %}false{% endif %};
+const IS_ADMIN = {% if request.session.get("user") and request.session.get("user").get("is_admin") %}true{% else %}false{% endif %};
 const PLAYER_ID = '{{ player_id }}';
 {% raw %}
 const RANK_MAP = [
@@ -367,10 +367,9 @@ function App() {
             const rank = best ? { label: best.rank_title, color: best.rank_color, threshold: best.elo } : getRank(best ? best.elo : 0);
             document.documentElement.style.setProperty('--rank-color', rank.color);
             document.documentElement.style.setProperty('--rank-color-transparent', `${rank.color}30`);
-            const mr = await fetch('/api/matches?limit=50');
-            const allMatches = await mr.json();
-            const filtered = allMatches.filter(m => isPlayerInTeam(data.username, m.team_a_name) || isPlayerInTeam(data.username, m.team_b_name));
-            setMatches(filtered);
+            const mr = await fetch(`/api/matches?player_id=${PLAYER_ID}&limit=50`);
+            const matchData = await mr.json();
+            setMatches(matchData);
 
             const [histRes, seasonsRes] = await Promise.all([
                 fetch(`/api/players/${PLAYER_ID}/history?limit=200`),

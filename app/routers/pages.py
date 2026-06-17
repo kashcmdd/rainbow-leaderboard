@@ -5,14 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
 
-from app.config import settings
 from app.database import get_db
 from app.deps import require_user
 from app.models import Player, Player as PlayerModel
+from app.csrf import csrf_input
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
-templates.env.globals["admin_discord_ids"] = settings.admin_discord_ids
+templates.env.globals["csrf_input"] = csrf_input
 
 
 @router.get("/", response_class=HTMLResponse)

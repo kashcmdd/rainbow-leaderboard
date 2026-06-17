@@ -24,17 +24,29 @@ async def get_leaderboard(
     )
 
     if rank:
+        # Build tier ranges from rank thresholds
         tiers = {}
+        tier_order = []
         for name, threshold, _ in RANKS:
             tier = name.split()[0]
             if tier not in tiers:
-                tiers[tier] = [threshold, threshold]
+                tiers[tier] = {"min": threshold, "max": None}
+                tier_order.append(tier)
             else:
-                tiers[tier][1] = threshold
+                tiers[tier]["max"] = threshold
+        # Set upper bounds exclusive — last tier has no upper bound
+        for i, tier in enumerate(tier_order):
+            if tiers[tier]["max"] is not None:
+                tiers[tier]["max"] = tiers[tier]["max"] - 1
+            else:
+                # Highest rank — no cap
+                tiers[tier]["max"] = None
         if rank in tiers:
-            min_elo = tiers[rank][0]
-            max_elo = tiers[rank][1]
-            q = q.where(and_(Rating.elo >= min_elo, Rating.elo <= max_elo))
+            min_elo = tiers[rank]["min"]
+            max_elo = tiers[rank]["max"]
+            q = q.where(Rating.elo >= min_elo)
+            if max_elo is not None:
+                q = q.where(Rating.elo <= max_elo)
 
     q = q.order_by(desc(Rating.elo)).limit(limit)
     result = await db.execute(q)

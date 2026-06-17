@@ -41,19 +41,15 @@
 
 <script>
 async function loadStats() {
-    const [playersRes, matchesRes, lbRes, activityRes] = await Promise.all([
-        fetch('/api/players'),
-        fetch('/api/matches?limit=100'),
-        fetch('/api/leaderboard/1v1'),
+    const [statsRes, activityRes] = await Promise.all([
+        fetch('/api/stats'),
         fetch('/api/activity'),
     ]);
-    const players = await playersRes.json();
-    const matches = await matchesRes.json();
-    const lb = await lbRes.json();
-    document.getElementById('totalPlayers').textContent = players.length;
-    document.getElementById('totalMatches').textContent = matches.length;
-    if (lb.length > 0) {
-        document.getElementById('topPlayer').innerHTML = `<a href="/player/${lb[0].player_id}" class="hover:text-[#e8197d] transition-colors">${lb[0].name}</a>`;
+    const stats = await statsRes.json();
+    document.getElementById('totalPlayers').textContent = stats.total_players;
+    document.getElementById('totalMatches').textContent = stats.total_matches;
+    if (stats.top_player) {
+        document.getElementById('topPlayer').innerHTML = `<a href="/player/${stats.top_player.id}" class="hover:text-[#e8197d] transition-colors">${stats.top_player.username}</a>`;
     }
     const activity = await activityRes.json();
     const feed = document.getElementById('activityFeed');
