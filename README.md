@@ -97,6 +97,10 @@ rainbow-leaderboard/
 └── requirements.txt   # Python dependencies
 ```
 
+## Known Issues 🐛
+
+- **Profile page has rendering bugs** — working on fixes. History display and some UI elements may not render correctly in certain states. Expect a patch soon.
+
 ## License
 
 Built for fun. Use it, tweak it, break it.
