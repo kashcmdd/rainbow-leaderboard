@@ -36,13 +36,11 @@ async def get_csrf_token(request: Request):
 async def csrf_protect(request: Request):
     """Dependency that validates CSRF token on mutating requests.
 
-    Token must be sent via X-CSRF-Token header (preferred) or csrf_token form field.
-    GET/HEAD/OPTIONS requests and X-CSRF-Bypass header are exempted.
+    Token must be sent via X-CSRF-Token header (preferred), csrf_token form field,
+    or multipart form field named csrf_token.
+    GET/HEAD/OPTIONS requests are exempted.
     """
     if request.method in ("GET", "HEAD", "OPTIONS"):
-        return
-
-    if request.headers.get("X-CSRF-Bypass") == "1":
         return
 
     session_token = request.session.get(CSRF_SESSION_KEY)
@@ -59,7 +57,11 @@ async def csrf_protect(request: Request):
             body = await request.json()
             provided = body.get("csrf_token")
         except Exception:
-            pass
+            try:
+                form = await request.form()
+                provided = form.get("csrf_token")
+            except Exception:
+                pass
 
     if not provided or not secrets.compare_digest(session_token, provided):
         raise HTTPException(

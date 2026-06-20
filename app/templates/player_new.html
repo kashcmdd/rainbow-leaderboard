@@ -20,7 +20,7 @@ document.getElementById('playerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = e.target.username.value;
 
-    const res = await fetch('/api/players', {
+    const res = await window.apiFetch('/api/players', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({username}),

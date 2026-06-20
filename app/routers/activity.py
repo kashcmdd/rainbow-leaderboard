@@ -53,7 +53,9 @@ async def get_activity(limit: int = Query(20, ge=1, le=50), db: AsyncSession = D
 
         a_name = team_name(m.team_a)
         b_name = team_name(m.team_b)
-        winner = a_name if m.winner_team_id and m.team_a and m.winner_team_id == m.team_a_id else b_name
+        if not m.winner_team_id:
+            continue
+        winner = a_name if m.team_a and m.winner_team_id == m.team_a_id else b_name
         score = f"{m.score_a}-{m.score_b}"
         items.append({
             "type": "match",

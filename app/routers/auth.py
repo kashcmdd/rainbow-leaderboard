@@ -1,3 +1,4 @@
+import secrets
 import httpx
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import RedirectResponse
@@ -35,18 +36,24 @@ async def login(request: Request):
 
 
 @router.get("/discord")
-async def discord_login():
+async def discord_login(request: Request):
+    state = secrets.token_urlsafe(32)
+    request.session["oauth_state"] = state
     params = {
         "client_id": settings.discord_client_id,
         "redirect_uri": settings.discord_redirect_uri,
         "response_type": "code",
         "scope": "identify",
+        "state": state,
     }
     return RedirectResponse(url=f"{DISCORD_AUTH_URL}?{urlencode(params)}", status_code=302)
 
 
 @router.get("/callback")
-async def callback(request: Request, code: str, db: AsyncSession = Depends(get_db)):
+async def callback(request: Request, code: str, state: str = None, db: AsyncSession = Depends(get_db)):
+    expected = request.session.pop("oauth_state", None)
+    if not expected or not state or state != expected:
+        return RedirectResponse(url="/auth/login?error=failed", status_code=302)
     data = {
         "client_id": settings.discord_client_id,
         "client_secret": settings.discord_client_secret,

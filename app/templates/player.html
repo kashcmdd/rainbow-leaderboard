@@ -60,22 +60,11 @@
     <div class="card p-8 animate-pulse"><div class="h-6 bg-white/5 rounded w-48 mb-4"></div><div class="grid grid-cols-2 md:grid-cols-4 gap-3"><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div></div></div>
 </div>
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
+<script>
+var IS_ADMIN = {% if request.session.get("user") and request.session.get("user").get("is_admin") %}true{% else %}false{% endif %};
+var PLAYER_ID = '{{ player_id }}';
 
-function isPlayerInTeam(playerName, teamName) {
-    if (!teamName) return false;
-    return teamName.split(' + ').some(n => n.trim() === playerName);
-}
-
-const IS_ADMIN = {% if request.session.get("user") and request.session.get("user").get("is_admin") %}true{% else %}false{% endif %};
-const PLAYER_ID = '{{ player_id }}';
-{% raw %}
-const RANK_MAP = [
+var RANK_MAP = [
     { label: 'Bronze I',   threshold: 0,   color: '#7A4520' },
     { label: 'Bronze II',  threshold: 100,  color: '#96541A' },
     { label: 'Bronze III', threshold: 200, color: '#B8682A' },
@@ -110,489 +99,560 @@ const RANK_MAP = [
 ];
 
 function getRank(elo) {
-    let rank = RANK_MAP[0];
-    for (const r of RANK_MAP) {
-        if (elo >= r.threshold) rank = r;
+    var rank = RANK_MAP[0];
+    for (var i = 0; i < RANK_MAP.length; i++) {
+        if (elo >= RANK_MAP[i].threshold) rank = RANK_MAP[i];
     }
     return rank;
 }
 
 function rankGlow(color) {
-    const c = color.replace('#','');
-    const r = parseInt(c.slice(0,2),16);
-    const g = parseInt(c.slice(2,4),16);
-    const b = parseInt(c.slice(4,6),16);
-    return `rgba(${r},${g},${b},0.6)`;
+    var c = color.replace('#','');
+    var r = parseInt(c.slice(0,2),16);
+    var g = parseInt(c.slice(2,4),16);
+    var b = parseInt(c.slice(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',0.6)';
 }
 
-// ─── COMPONENTS ──────────────────────────────────────────────────────
-
-function ShieldIcon({ rank }) {
-    const fill = rank.color;
-    const label = rank.label;
-    if (label === 'Unranked') return null;
-    const filename = label.toLowerCase().replace(/ /g, '_') + '.svg';
-    return (
-        <img src={`/static/rank-icons/${filename}`} alt={label}
-             className="tier-shield"
-             style={{ width: 52, height: 64, filter: `drop-shadow(0 0 6px ${fill}60)` }}/>
-    );
+function isPlayerInTeam(playerName, teamName) {
+    if (!teamName) return false;
+    return teamName.split(' + ').some(function(n) { return n.trim() === playerName; });
 }
 
-function SvgHelmet({ fill, initial }) {
-    return (
-        <svg viewBox="0 0 80 80" className="w-full h-full" style={{ filter: `drop-shadow(0 0 6px ${fill}40)` }}>
-            <path d="M24 42 Q24 24 40 20 Q56 24 56 42 L56 52 L24 52 Z"
-                  fill={`${fill}18`} stroke={fill} strokeWidth="1.5" strokeOpacity="0.4"/>
-            <path d="M28 38 Q28 26 40 23 Q52 26 52 38 L52 50 L28 50 Z"
-                  fill={`${fill}10`} stroke={fill} strokeWidth="1" strokeOpacity="0.3"/>
-            <path d="M30 35 Q30 30 40 28 Q50 30 50 35 L50 42 L30 42 Z"
-                  fill={`${fill}30`} stroke={fill} strokeWidth="1"/>
-            <circle cx="36" cy="34" r="2" fill={fill} opacity="0.8" className="sparkline-dot"/>
-            <text x="40" y="66" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="800"
-                  style={{ filter: `drop-shadow(0 0 3px ${fill})` }}>{initial}</text>
-            <line x1="52" y1="29" x2="56" y2="27" stroke={fill} strokeWidth="0.8" opacity="0.4"/>
-            <line x1="52" y1="29" x2="54" y2="33" stroke={fill} strokeWidth="0.8" opacity="0.4"/>
-        </svg>
-    );
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
 }
 
-function StyledAvatar({ username, rank, avatarUrl, onAvatarChange }) {
-    const initial = username.charAt(0).toUpperCase();
-    const fill = rank.color;
-    const [showPicker, setShowPicker] = useState(false);
-    const inputRef = useRef(null);
-    const handleFile = async (e) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        const form = new FormData();
-        form.append('file', f);
-        const res = await fetch(`/api/players/${PLAYER_ID}/avatar`, { method: 'POST', body: form });
-        if (res.ok) { const d = await res.json(); onAvatarChange(d.avatar_url); }
-        setShowPicker(false);
-    };
-    const handleUrl = async () => {
-        const url = prompt('Enter image URL:');
-        if (!url) return;
-        const res = await fetch(`/api/players/${PLAYER_ID}/avatar`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url}) });
-        if (res.ok) { const d = await res.json(); onAvatarChange(d.avatar_url); }
-        setShowPicker(false);
-    };
-    const handleRemove = async () => {
-        const res = await fetch(`/api/players/${PLAYER_ID}/avatar`, { method: 'DELETE' });
-        if (res.ok) onAvatarChange(null);
-        setShowPicker(false);
-    };
-    const [imgErr, setImgErr] = useState(false);
-    const showSvg = !avatarUrl || imgErr;
-    return (
-        <div className="relative shrink-0 group">
-            <div className="absolute -inset-1 rounded-full avatar-ring z-0"
-                 style={{ '--ring-color-a': `${fill}60`, '--ring-color-b': `${fill}20` }}/>
-            <div className="relative z-10 w-24 h-24 rounded-full flex items-center justify-center overflow-hidden"
-                 style={{ background: `linear-gradient(135deg, ${fill}25, #141416)` }}>
-                {avatarUrl && !imgErr && <img src={avatarUrl} alt={username} className="absolute inset-0 w-full h-full object-cover z-10"
-                    onError={() => setImgErr(true)}/>}
-                {showSvg && <SvgHelmet fill={fill} initial={initial}/>}
-            </div>
-            <button onClick={() => setShowPicker(!showPicker)}
-                    className="absolute -bottom-1 -right-1 z-20 w-8 h-8 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: '#e8197d', color: '#fff', boxShadow: '0 0 8px rgba(232,25,125,0.5)' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-            {showPicker && (
-                <div className="absolute top-0 left-full ml-3 z-30 rounded-xl p-3 flex flex-col gap-3 min-w-[200px]"
-                     style={{ background: '#1c1c1f', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-                    <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden"/>
-                    <button onClick={() => inputRef.current?.click()}
-                            className="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all"
-                            style={{ background: 'rgba(232,25,125,0.15)', color: '#e8197d' }}>
-                        Upload image
-                    </button>
-                    <button onClick={handleUrl}
-                            className="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all"
-                            style={{ background: 'rgba(255,255,255,0.05)', color: '#ccc' }}>
-                        Set URL
-                    </button>
-                    {avatarUrl && <button onClick={handleRemove}
-                            className="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all"
-                            style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
-                        Remove avatar
-                    </button>}
-                </div>
-            )}
-        </div>
-    );
-}
+// ─── ELASPED COUNTER ANIMATION ───────────────────────────
 
-function EloCounter({ target, rankColor }) {
-    const [display, setDisplay] = useState(0);
-    const [pulse, setPulse] = useState(false);
-    useEffect(() => {
-        let current = 0, steps = 60, inc = target / steps, i = 0;
-        const t = setInterval(() => {
-            i++; current = Math.min(Math.round(inc * i), target);
-            setDisplay(current);
-            if (i % 10 === 0) setPulse(true);
-            if (current >= target) { clearInterval(t); setDisplay(target); setPulse(true); setTimeout(() => setPulse(false), 400); }
-        }, 20);
-        return () => clearInterval(t);
-    }, [target]);
-    useEffect(() => { if (pulse) { const t = setTimeout(() => setPulse(false), 400); return () => clearTimeout(t); } }, [pulse]);
-    return <div className={`text-5xl font-extrabold tracking-tight transition-all ${pulse ? 'animate-count-pulse' : ''}`} style={{ color: rankColor }}>{display.toLocaleString()}</div>;
-}
-
-function CircularProgress({ percentage, color, value, delay }) {
-    const r = 50, circ = 2 * Math.PI * r;
-    const [off, setOff] = useState(circ);
-    useEffect(() => { const t = setTimeout(() => setOff(circ * (1 - percentage / 100)), delay || 400); return () => clearTimeout(t); }, [percentage, delay]);
-    return (
-        <div className="flex flex-col items-center gap-2">
-            <svg width="130" height="130" viewBox="0 0 130 130">
-                <circle cx="65" cy="65" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8"/>
-                <circle cx="65" cy="65" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
-                        strokeDasharray={circ} strokeDashoffset={off}
-                        style={{ transition: 'stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
-                        transform="rotate(-90 65 65)"/>
-                <text x="65" y="58" textAnchor="middle" fill="#fff" fontSize="28" fontWeight="800">{value}</text>
-                <text x="65" y="80" textAnchor="middle" fill="#666" fontSize="11" fontWeight="600">Win Rate</text>
-            </svg>
-        </div>
-    );
-}
-
-function AnimatedBar({ value, label, color, max, delay }) {
-    const [w, setW] = useState('0%');
-    const pct = max > 0 ? (value / max) * 100 : 0;
-    useEffect(() => { const t = setTimeout(() => setW(`${Math.min(pct, 100)}%`), delay || 200); return () => clearTimeout(t); }, [pct, delay]);
-    return (
-        <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500 font-semibold uppercase tracking-wider">{label}</span>
-                <span className="font-bold" style={{ color }}>{value}</span>
-            </div>
-            <div className="h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                <div className="h-full rounded-full transition-all duration-1000 ease-out"
-                     style={{ width: w, background: color, boxShadow: `0 0 12px ${color}40` }}/>
-            </div>
-        </div>
-    );
-}
-
-function Sparkline({ data, color }) {
-    const width = 280, height = 60, pt = 8, pb = 8;
-    const chartH = height - pt - pb;
-    const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-    const step = data.length > 1 ? (width) / (data.length - 1) : 0;
-    const pts = data.map((v, i) => ({ x: i * step, y: pt + chartH - ((v - min) / range) * chartH }));
-    if (pts.length === 0) return null;
-    const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const last = pts[pts.length - 1];
-    return (
-        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
-            <defs><linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.15"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient></defs>
-            <path d={`${linePath} L${last.x.toFixed(1)} ${height} L${pts[0].x.toFixed(1)} ${height} Z`} fill="url(#sf)"/>
-            <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="300" className="animate-draw-line"/>
-            <circle cx={last.x} cy={last.y} r="4" fill={color} className="sparkline-dot" style={{ filter: `drop-shadow(0 0 6px ${color})` }}/>
-        </svg>
-    );
-}
-
-function MatchCard({ match, playerName, index }) {
-    const isWin = isPlayerInTeam(playerName, match.winner_name);
-    const isA = isPlayerInTeam(playerName, match.team_a_name);
-    const opponent = isA ? match.team_b_name : match.team_a_name;
-    const delta = isWin
-        ? (isA ? (match.elo_delta_a || 0) : (match.elo_delta_b || 0))
-        : (isA ? (match.elo_delta_b || 0) : (match.elo_delta_a || 0));
-    const borderColor = isWin ? '#00e676' : '#ef4444';
-    const delay = 0.08 * (index + 1);
-    return (
-        <div className={`card card-hover match-card ${isWin ? 'match-card-win' : 'match-card-loss'} animate-slide-up opacity-0`}
-             style={{ animationDelay: `${delay}s`, borderLeft: `3px solid ${borderColor}`, boxShadow: `inset 0 0 40px ${isWin ? 'rgba(0,230,118,0.08)' : 'rgba(239,68,68,0.08)'}` }}>
-            <div className="relative z-10 p-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0"
-                         style={{ background: `${borderColor}15`, color: borderColor }}>{opponent.charAt(0)}</div>
-                    <div className="min-w-0">
-                        <div className="text-sm font-bold text-white truncate">{opponent}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-600">{match.format}</span>
-                            <span className="text-[10px] text-gray-700">·</span>
-                            <span className="text-[10px] text-gray-600">{new Date(match.played_at).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                    <span className={`text-sm font-extrabold ${isWin ? 'text-white' : 'text-gray-400'}`}>{match.score_a}–{match.score_b}</span>
-                    <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${isWin ? 'text-white' : 'text-white'}`}
-                          style={{ background: isWin ? 'rgba(0,230,118,0.2)' : 'rgba(239,68,68,0.2)', color: borderColor }}>
-                        {isWin ? '+' : ''}{delta}
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function GlowStatCard({ icon, label, value, color, delay }) {
-    return (
-        <div className="card p-4 text-center animate-slide-up opacity-0 animate-stat-glow"
-             style={{ '--stat-color': `${color}40`, '--stat-color-transparent': `${color}10`, border: `1px solid ${color}20`, animationDelay: delay ? `${delay}s` : '0s' }}>
-            <div className="text-lg mb-1">{icon}</div>
-            <div className="text-2xl font-extrabold text-white">{value}</div>
-            <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wider mt-0.5">{label}</div>
-        </div>
-    );
-}
-
-// ─── MAIN APP ────────────────────────────────────────────────────────
-
-function App() {
-    const [player, setPlayer] = useState(null);
-    const [matches, setMatches] = useState([]);
-    const [eloHistory, setEloHistory] = useState([]);
-    const [seasons, setSeasons] = useState([]);
-    const [loadState, setLoadState] = useState('loading');
-    const chartRef = useRef(null);
-    const chartInstance = useRef(null);
-
-    useEffect(() => {
-        (async () => {
-            const res = await fetch(`/api/players/${PLAYER_ID}`);
-            if (!res.ok) { setLoadState('notfound'); return; }
-            const data = await res.json();
-            setPlayer(data);
-            const best = [...data.ratings].sort((a, b) => b.elo - a.elo)[0];
-            const rank = best ? { label: best.rank_title, color: best.rank_color, threshold: best.elo } : getRank(best ? best.elo : 0);
-            document.documentElement.style.setProperty('--rank-color', rank.color);
-            document.documentElement.style.setProperty('--rank-color-transparent', `${rank.color}30`);
-            const mr = await fetch(`/api/matches?player_id=${PLAYER_ID}&limit=50`);
-            const matchData = await mr.json();
-            setMatches(matchData);
-
-            const [histRes, seasonsRes] = await Promise.all([
-                fetch(`/api/players/${PLAYER_ID}/history?limit=200`),
-                fetch(`/api/players/${PLAYER_ID}/seasons`),
-            ]);
-            if (histRes.ok) setEloHistory(await histRes.json());
-            if (seasonsRes.ok) setSeasons(await seasonsRes.json());
-
-            setLoadState('loaded');
-        })();
-    }, []);
-
-    useEffect(() => {
-        if (loadState !== 'loaded' || eloHistory.length < 2 || !chartRef.current) return;
-        if (chartInstance.current) chartInstance.current.destroy();
-        const ctx = chartRef.current.getContext('2d');
-        const labels = eloHistory.map(e => new Date(e.timestamp).toLocaleDateString());
-        const data = eloHistory.map(e => e.elo_after);
-        const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-        gradient.addColorStop(0, 'rgba(232,25,125,0.2)');
-        gradient.addColorStop(1, 'rgba(232,25,125,0)');
-        chartInstance.current = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'ELO',
-                    data,
-                    borderColor: '#e8197d',
-                    backgroundColor: gradient,
-                    borderWidth: 2,
-                    pointRadius: 2,
-                    pointHoverRadius: 5,
-                    pointBackgroundColor: '#e8197d',
-                    fill: true,
-                    tension: 0.3,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { ticks: { color: '#666', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
-                    y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                },
-                interaction: { intersect: false, mode: 'index' },
-            },
-        });
-    }, [eloHistory, loadState]);
-
-    if (loadState === 'notfound') {
-        return <div className="card p-12 text-center"><p className="text-sm text-gray-500">Player not found.</p><a href="/leaderboard" className="btn btn-pink mt-4 inline-block text-sm">Back</a></div>;
+function animateCounter(el, target, color, duration) {
+    duration = duration || 1200;
+    var start = 0, steps = 60, inc = target / steps, i = 0;
+    var interval = duration / steps;
+    function tick() {
+        i++;
+        var current = Math.min(Math.round(inc * i), target);
+        el.textContent = current.toLocaleString();
+        el.style.color = color;
+        if (i % 10 === 0) { el.classList.add('animate-count-pulse'); setTimeout(function() { el.classList.remove('animate-count-pulse'); }, 400); }
+        if (current >= target) { clearInterval(t); if (target > 0) el.textContent = target.toLocaleString(); }
     }
-    if (loadState === 'loading' || !player) {
-        return <div className="card p-8 animate-pulse"><div className="h-6 bg-white/5 rounded w-48 mb-4"></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array(4).fill(0).map((_,i) => <div key={i} className="h-20 bg-white/5 rounded-lg"></div>)}</div></div>;
+    var t = setInterval(tick, interval);
+}
+
+function animateWinRate(el, target, color) {
+    var r = 50, circ = 2 * Math.PI * r;
+    var circle = el.querySelector('.wr-circle-fill');
+    var text = el.querySelector('.wr-text');
+    if (!circle) return;
+    setTimeout(function() {
+        circle.style.strokeDashoffset = circ * (1 - target / 100);
+    }, 400);
+}
+
+// ─── DRAW ELO CHART ──────────────────────────────────────
+
+function drawEloChart(canvas, history, rankColor) {
+    if (!canvas || history.length < 2) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var pad = { top: 15, bottom: 20, left: 45, right: 15 };
+    var chartW = W - pad.left - pad.right;
+    var chartH = H - pad.top - pad.bottom;
+
+    var data = history.map(function(e) { return e.elo_after; });
+    var labels = history.map(function(e) { return new Date(e.timestamp).toLocaleDateString(); });
+    var min = Math.min.apply(null, data);
+    var max = Math.max.apply(null, data);
+    var range = max - min || 1;
+    var padding = range * 0.1;
+    min -= padding;
+    max += padding;
+
+    function x(i) { return pad.left + (i / (data.length - 1)) * chartW; }
+    function y(v) { return pad.top + chartH - ((v - min) / (max - min)) * chartH; }
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    var lines = 5;
+    for (var i = 0; i <= lines; i++) {
+        var yPos = pad.top + (i / lines) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, yPos);
+        ctx.lineTo(W - pad.right, yPos);
+        ctx.stroke();
+        var val = Math.round(max - (i / lines) * (max - min));
+        ctx.fillStyle = '#666';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(val, pad.left - 8, yPos + 3);
     }
 
-    const best = [...player.ratings].sort((a, b) => b.elo - a.elo)[0];
-    const rank = best ? { label: best.rank_title, color: best.rank_color, threshold: best.elo } : RANK_MAP[0];
-    const totWins = player.ratings.reduce((s, r) => s + r.wins, 0);
-    const totLosses = player.ratings.reduce((s, r) => s + r.losses, 0);
-    const totPlayed = totWins + totLosses;
-    const wr = totPlayed > 0 ? (totWins / totPlayed) * 100 : 0;
-    const rankColorStyle = { '--rank-color': rank.color, '--rank-color-transparent': `${rank.color}25` };
+    // X labels
+    ctx.fillStyle = '#666';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    var labelStep = Math.max(1, Math.floor(labels.length / 8));
+    for (var i = 0; i < labels.length; i += labelStep) {
+        ctx.fillText(labels[i], x(i), H - 4);
+    }
 
-    // Sparkline: reconstruct ELO history from match deltas
-    let sparkData = [];
-    if (matches.length > 0) {
-        const reversed = [...matches].reverse();
-        let elo = best ? best.elo : 0;
-        const hist = [];
-        for (const m of reversed) {
-            const isWin = isPlayerInTeam(player.username, m.winner_name);
-            const isA = isPlayerInTeam(player.username, m.team_a_name);
-            const delta = isA ? (m.elo_delta_a || 0) : (m.elo_delta_b || 0);
-            hist.push(elo);
-            elo += isWin ? -delta : delta;
+    // Gradient fill
+    var gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    gradient.addColorStop(0, rankColor + '33');
+    gradient.addColorStop(1, rankColor + '00');
+    ctx.beginPath();
+    ctx.moveTo(x(0), pad.top + chartH);
+    for (var i = 0; i < data.length; i++) {
+        ctx.lineTo(x(i), y(data[i]));
+    }
+    ctx.lineTo(x(data.length - 1), pad.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    for (var i = 0; i < data.length; i++) {
+        if (i === 0) ctx.moveTo(x(i), y(data[i]));
+        else ctx.lineTo(x(i), y(data[i]));
+    }
+    ctx.strokeStyle = rankColor;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // Points
+    for (var i = 0; i < data.length; i++) {
+        ctx.beginPath();
+        ctx.arc(x(i), y(data[i]), 2, 0, Math.PI * 2);
+        ctx.fillStyle = rankColor;
+        ctx.fill();
+    }
+}
+
+// ─── BUILD PROFILE HTML ──────────────────────────────────
+
+function renderProfile(root, state) {
+    var p = state.player;
+    if (!p) { return; }
+
+    var best = p.ratings.slice().sort(function(a, b) { return b.elo - a.elo; })[0];
+    var rank = best ? { label: best.rank_title, color: best.rank_color } : RANK_MAP[0];
+    var totWins = 0, totLosses = 0;
+    for (var i = 0; i < p.ratings.length; i++) { totWins += p.ratings[i].wins; totLosses += p.ratings[i].losses; }
+    var totPlayed = totWins + totLosses;
+    var wr = totPlayed > 0 ? (totWins / totPlayed) * 100 : 0;
+    var rankColorStyle = '--rank-color:' + rank.color + ';--rank-color-transparent:' + rank.color + '25';
+
+    // Sparkline data
+    var sparkData = [];
+    if (state.matches.length > 0) {
+        var reversed = state.matches.slice().reverse();
+        var elo2 = best ? best.elo : 0;
+        var hist = [];
+        for (var i = 0; i < reversed.length; i++) {
+            var m = reversed[i];
+            var isW = isPlayerInTeam(p.username, m.winner_name);
+            var isA = isPlayerInTeam(p.username, m.team_a_name);
+            var d = isA ? (m.elo_delta_a || 0) : (m.elo_delta_b || 0);
+            hist.push(elo2);
+            elo2 += isW ? -d : d;
         }
         hist.reverse();
         sparkData = hist.slice(-20);
     }
 
-    return (
-        <div className="relative" style={{ background: '#0d0d0f' }}>
-            <div className="noise-overlay"/>
-            <div className="fixed top-0 left-0 right-0 h-96 pointer-events-none z-[1] rank-gradient-bg" style={rankColorStyle}/>
+    var initial = p.username.charAt(0).toUpperCase();
+    var rankFilename = rank.label.toLowerCase().replace(/ /g, '_') + '.svg';
 
-            <div className="relative z-10">
-                {/* ─── HEADER ──────────────────────────────── */}
-                <div className="card p-6 sm:p-8 mb-6 animate-slide-up opacity-0 stagger-1" style={{ background: '#141416' }}>
-                    <div className="flex flex-col md:flex-row items-center gap-6">
-                        <StyledAvatar username={player.username} rank={rank} avatarUrl={player.avatar_url} onAvatarChange={(url) => setPlayer({...player, avatar_url: url})}/>
-                        <div className="flex-1 text-center md:text-left">
-                            <h1 className="text-3xl font-extrabold text-white mb-1">{player.username}</h1>
-                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                                <div className="flex items-center gap-2 px-3 py-1 rounded-full animate-pulse-glow"
-                                     style={{ '--glow-color': `${rank.color}50`, '--glow-color-transparent': `${rank.color}15`, background: `${rank.color}15`, border: `1px solid ${rank.color}30` }}>
-                                    <div className="w-4 h-4 rounded-full" style={{ background: rank.color }}/>
-                                    <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: rank.color }}>{rank.label}</span>
-                                </div>
-                                <span className="text-xs text-gray-600">·</span>
-                                <span className="text-xs text-gray-600">{totPlayed.toLocaleString()} matches</span>
-                                <span className="text-xs text-gray-600">·</span>
-                                <span className="text-xs" style={{ color: '#00e676' }}>{wr.toFixed(0)}% WR</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 shrink-0">
-                            <ShieldIcon rank={rank}/>
-                            <EloCounter target={best ? best.elo : 0} rankColor={rank.color}/>
-                            <span className="text-[10px] text-gray-600 font-semibold uppercase tracking-widest">ELO Rating</span>
-                        </div>
-                    </div>
-                </div>
+    var html = '<div class="relative" style="background:#0d0d0f">' +
+        '<div class="noise-overlay"></div>' +
+        '<div class="fixed top-0 left-0 right-0 h-96 pointer-events-none z-[1] rank-gradient-bg" style="' + rankColorStyle + '"></div>' +
+        '<div class="relative z-10">' +
+        // HEADER
+        '<div class="card p-6 sm:p-8 mb-6 animate-slide-up opacity-0 stagger-1" id="profileHeader" style="background:#141416">' +
+        '<div class="flex flex-col md:flex-row items-center gap-6">' +
+        renderAvatar(p, rank, initial) +
+        '<div class="flex-1 text-center md:text-left">' +
+        '<h1 class="text-3xl font-extrabold text-white mb-1">' + esc(p.username) + '</h1>' +
+        '<div class="flex flex-wrap items-center justify-center md:justify-start gap-2">' +
+        '<div class="flex items-center gap-2 px-3 py-1 rounded-full animate-pulse-glow" style="--glow-color:' + rank.color + '50;--glow-color-transparent:' + rank.color + '15;background:' + rank.color + '15;border:1px solid ' + rank.color + '30">' +
+        '<div class="w-4 h-4 rounded-full" style="background:' + rank.color + '"></div>' +
+        '<span class="text-xs font-extrabold uppercase tracking-wider" style="color:' + rank.color + '">' + esc(rank.label) + '</span></div>' +
+        '<span class="text-xs text-gray-600">·</span>' +
+        '<span class="text-xs text-gray-600">' + totPlayed.toLocaleString() + ' matches</span>' +
+        '<span class="text-xs text-gray-600">·</span>' +
+        '<span class="text-xs" style="color:#00e676">' + wr.toFixed(0) + '% WR</span></div></div>' +
+        '<div class="flex flex-col items-center gap-1 shrink-0">' +
+        '<img src="/static/rank-icons/' + rankFilename + '" alt="' + esc(rank.label) + '" class="tier-shield" style="width:52px;height:64px;filter:drop-shadow(0 0 6px ' + rank.color + '60)">' +
+        '<div class="text-5xl font-extrabold tracking-tight" id="eloCounter" style="color:' + rank.color + '">0</div>' +
+        '<span class="text-[10px] text-gray-600 font-semibold uppercase tracking-widest">ELO Rating</span></div></div></div>' +
 
-                {/* ─── STATS ────────────────────────────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-                    <div className="lg:col-span-4 card p-5 animate-slide-up opacity-0 stagger-2 flex flex-col items-center justify-center" style={{ background: '#141416' }}>
-                        <h3 className="text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-3">Win Rate</h3>
-                        <CircularProgress percentage={wr} color={rank.color} value={`${wr.toFixed(0)}%`} delay={300}/>
-                        <div className="flex items-center gap-4 mt-4 text-xs">
-                            <span style={{ color: '#00e676' }}>{totWins}W</span>
-                            <span className="text-gray-700">·</span>
-                            <span style={{ color: '#ef4444' }}>{totLosses}L</span>
-                            {best && best.streak ? <span className="font-bold" style={{ color: best.streak > 0 ? '#00e676' : '#ef4444' }}>{best.streak > 0 ? '🔥' : ''}{best.streak > 0 ? '+' : ''}{best.streak}</span> : null}
-                        </div>
-                    </div>
+        // STATS
+        '<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">' +
+        '<div class="lg:col-span-4 card p-5 animate-slide-up opacity-0 stagger-2 flex flex-col items-center justify-center" style="background:#141416">' +
+        '<h3 class="text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-3">Win Rate</h3>' +
+        renderWinRateCircle(wr, rank.color) +
+        '<div class="flex items-center gap-4 mt-4 text-xs"><span style="color:#00e676">' + totWins + 'W</span>' +
+        '<span class="text-gray-700">·</span><span style="color:#ef4444">' + totLosses + 'L</span>' +
+        (best && best.streak ? '<span class="font-bold" style="color:' + (best.streak > 0 ? '#00e676' : '#ef4444') + '">' + (best.streak > 0 ? '\ud83d\udd25' : '') + (best.streak > 0 ? '+' : '') + best.streak + '</span>' : '') +
+        '</div></div>' +
 
-                    <div className="lg:col-span-5 card p-5 animate-slide-up opacity-0 stagger-2 space-y-4" style={{ background: '#141416' }}>
-                        <h3 className="text-[10px] text-gray-600 font-semibold uppercase tracking-widest">Performance</h3>
-                        <AnimatedBar value={totWins} label="Wins" color="#00e676" max={totPlayed} delay={400}/>
-                        <AnimatedBar value={totLosses} label="Losses" color="#ef4444" max={totPlayed} delay={600}/>
-                        <AnimatedBar value={Math.round(wr)} label="Win Rate" color={rank.color} max={100} delay={800}/>
-                        {sparkData.length > 1 && (
-                            <div className="pt-2">
-                                <div className="flex items-center justify-between text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-2">
-                                    <span>ELO Trend</span>
-                                    <span style={{ color: rank.color }}>+{Math.round(sparkData[sparkData.length-1] - sparkData[0])}</span>
-                                </div>
-                                <Sparkline data={sparkData} color={rank.color}/>
-                            </div>
-                        )}
-                    </div>
+        '<div class="lg:col-span-5 card p-5 animate-slide-up opacity-0 stagger-2 space-y-4" style="background:#141416">' +
+        '<h3 class="text-[10px] text-gray-600 font-semibold uppercase tracking-widest">Performance</h3>' +
+        renderBar('Wins', totWins, totPlayed, '#00e676', 400) +
+        renderBar('Losses', totLosses, totPlayed, '#ef4444', 600) +
+        renderBar('Win Rate', Math.round(wr), 100, rank.color, 800) +
+        (sparkData.length > 1 ? renderSparkline(sparkData, rank.color) : '') +
+        '</div>' +
 
-                    <div className="lg:col-span-3 animate-slide-up opacity-0 stagger-2 grid grid-cols-2 gap-3 content-start">
-                        <GlowStatCard icon="⚔️" label="Total Matches" value={totPlayed} color="#888" delay={0.3}/>
-                        <GlowStatCard icon="🔥" label="Best ELO" value={best ? best.elo : 0} color="#00e676" delay={0.35}/>
-                        <GlowStatCard icon="🏆" label="Best Rank" value={best ? best.rank_title : '—'} color={rank.color} delay={0.4}/>
-                        <GlowStatCard icon="📈" label="Discord" value={player.discord_id ? 'Linked' : '—'} color={player.discord_id ? '#e8197d' : '#555'} delay={0.45}/>
-                    </div>
-                </div>
+        '<div class="lg:col-span-3 animate-slide-up opacity-0 stagger-2 grid grid-cols-2 gap-3 content-start">' +
+        renderGlowCard('\u2694\ufe0f', 'Total Matches', totPlayed, '#888', 0.3) +
+        renderGlowCard('\ud83d\udd25', 'Best ELO', best ? best.elo : 0, '#00e676', 0.35) +
+        renderGlowCard('\ud83c\udfc6', 'Best Rank', best ? best.rank_title : '\u2014', rank.color, 0.4) +
+        renderGlowCard('\ud83d\udcc8', 'Discord', p.discord_id ? 'Linked' : '\u2014', p.discord_id ? '#e8197d' : '#555', 0.45) +
+        '</div></div>' +
 
+        // ELO CHART
+        (state.eloHistory.length >= 2 ? '<div class="card p-5 mb-6 animate-slide-up opacity-0 stagger-3" style="background:#141416"><h3 class="text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-4">ELO Trend</h3><canvas id="eloChart" height="220" style="width:100%;height:220px"></canvas></div>' : '') +
 
+        // SEASON HISTORY
+        (state.seasons.length > 0 ? renderSeasons(state.seasons) : '') +
 
-                {/* ─── ELO TREND CHART ──────────────────────── */}
-                {eloHistory.length >= 2 && (
-                    <div className="card p-5 mb-6 animate-slide-up opacity-0 stagger-3" style={{ background: '#141416' }}>
-                        <h3 className="text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-4">ELO Trend</h3>
-                        <div ref={chartRef} style={{ height: 220, width: '100%' }}/>
-                    </div>
-                )}
+        // MATCH HISTORY
+        '<div class="animate-slide-up opacity-0 stagger-5">' +
+        '<div class="flex items-center justify-between mb-4"><h2 class="text-sm font-bold text-white uppercase tracking-widest">Recent Matches</h2>' +
+        '<div class="flex items-center gap-2 text-xs">' +
+        '<select id="formatFilter" class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs text-white">' +
+        '<option value="">All</option>' +
+        '<option value="1v1">1v1</option>' +
+        '<option value="2v2">2v2</option>' +
+        '<option value="3v3">3v3</option>' +
+        '<option value="4v4">4v4</option>' +
+        '<option value="5v5">5v5</option>' +
+        '</select>' +
+        '<input type="date" id="dateFrom" class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs text-white" style="color-scheme:dark">' +
+        '<input type="date" id="dateTo" class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-xs text-white" style="color-scheme:dark">' +
+        '<span class="flex items-center gap-1 text-gray-600"><span class="w-2 h-2 rounded-full" style="background:#00e676"></span>Win</span>' +
+        '<span class="flex items-center gap-1 text-gray-600"><span class="w-2 h-2 rounded-full" style="background:#ef4444"></span>Loss</span></div></div>' +
+        '<div id="matchHistoryContainer" class="space-y-2.5">' +
+        (state.matches.length === 0
+            ? '<div class="card p-8 text-center"><div class="text-sm text-gray-500">No matches yet.</div></div>'
+            : state.matches.slice(0, 15).map(function(m, i) { return renderMatchCard(m, p.username, i); }).join('')) +
+        '</div></div>' +
 
-                {/* ─── SEASON HISTORY ─────────────────────────── */}
-                {seasons.length > 0 && (
-                    <div className="mb-6 animate-slide-up opacity-0 stagger-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-sm font-bold text-white uppercase tracking-widest">Season History</h2>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {seasons.map((s, i) => (
-                                <div key={s.season_id} className="card p-4 animate-slide-up opacity-0" style={{ background: '#141416', animationDelay: `${0.05 * i}s` }}>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-bold text-white">{s.season_name}</span>
-                                        <span className="text-[10px] text-gray-600 font-semibold">#{s.position}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.rank_color }}/>
-                                        <span className="text-xs font-bold" style={{ color: s.rank_color }}>{s.rank_title}</span>
-                                        <span className="text-xs text-gray-600 ml-auto">ELO {s.elo}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-[10px] text-gray-600 font-semibold">
-                                        <span style={{ color: '#00e676' }}>{s.wins}W</span>
-                                        <span className="text-gray-700">·</span>
-                                        <span style={{ color: '#ef4444' }}>{s.losses}L</span>
-                                        {s.season_end && <span className="ml-auto">{new Date(s.season_end).toLocaleDateString()}</span>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+        // FOOTER
+        '<div class="mt-10 text-center animate-slide-up opacity-0 stagger-6">' +
+        '<div class="footer-line h-px max-w-xs mx-auto mb-4"></div>' +
+        '<p class="text-xs text-gray-600 font-semibold uppercase tracking-widest">Powered by <span class="font-extrabold" style="color:#e8197d">clukzers</span><span class="text-white font-extrabold">LB</span></p>' +
+        (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn text-xs mt-3 inline-block">Edit Player</a>' : '') +
+        '</div></div></div>';
 
-                {/* ─── MATCH HISTORY ─────────────────────────── */}
-                <div className="animate-slide-up opacity-0 stagger-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-bold text-white uppercase tracking-widest">Recent Matches</h2>
-                        <div className="flex items-center gap-3 text-xs">
-                            <span className="flex items-center gap-1 text-gray-600"><span className="w-2 h-2 rounded-full" style={{ background: '#00e676' }}/>Win</span>
-                            <span className="flex items-center gap-1 text-gray-600"><span className="w-2 h-2 rounded-full" style={{ background: '#ef4444' }}/>Loss</span>
-                        </div>
-                    </div>
-                    <div className="space-y-2.5">
-                        {matches.length === 0
-                            ? <div className="card p-8 text-center"><div className="text-sm text-gray-500">No matches yet.</div></div>
-                            : matches.slice(0, 15).map((m, i) => <MatchCard key={m.id} match={m} playerName={player.username} index={i}/>)
-                        }
-                    </div>
-                </div>
+    root.innerHTML = html;
 
-                {/* ─── FOOTER ─────────────────────────────────── */}
-                <div className="mt-10 text-center animate-slide-up opacity-0 stagger-6">
-                    <div className="footer-line h-px max-w-xs mx-auto mb-4"/>
-                    <p className="text-xs text-gray-600 font-semibold uppercase tracking-widest">
-                        Powered by <span className="font-extrabold" style={{ color: '#e8197d' }}>clukzers</span><span className="text-white font-extrabold">LB</span>
-                    </p>
-                    {IS_ADMIN && <a href={`/player/${PLAYER_ID}/edit`} className="btn text-xs mt-3 inline-block">Edit Player</a>}
-                </div>
-            </div>
-        </div>
-    );
+    // Start counter animation after render
+    setTimeout(function() {
+        var el = document.getElementById('eloCounter');
+        if (el) animateCounter(el, best ? best.elo : 0, rank.color, 1200);
+    }, 100);
+    setTimeout(function() {
+        animateWinRate(document.querySelector('.wr-container'), wr, rank.color);
+    }, 200);
+
+    // Draw ELO chart
+    if (state.eloHistory.length >= 2) {
+        var cvs = document.getElementById('eloChart');
+        if (cvs) {
+            cvs.width = cvs.parentElement.offsetWidth || 600;
+            cvs.height = 220;
+            drawEloChart(cvs, state.eloHistory, rank.color);
+        }
+    }
+
+    wireAvatarPicker(root, state, rank, initial);
+
+    // Wire match filter changes
+    var fmt = document.getElementById('formatFilter');
+    var df = document.getElementById('dateFrom');
+    var dt = document.getElementById('dateTo');
+    if (fmt) {
+        var handler = async function() {
+            var fmt = document.getElementById('formatFilter').value;
+            var df = document.getElementById('dateFrom').value;
+            var dt = document.getElementById('dateTo').value;
+            var url = '/api/matches?player_id=' + PLAYER_ID + '&limit=50';
+            if (fmt) url += '&format=' + fmt;
+            if (df) url += '&date_from=' + df;
+            if (dt) url += '&date_to=' + dt;
+            var mr = await fetch(url);
+            if (mr.ok) {
+                state.matches = await mr.json();
+                var container = document.getElementById('matchHistoryContainer');
+                if (container && state.player) {
+                    container.innerHTML = state.matches.length === 0
+                        ? '<div class="card p-8 text-center"><div class="text-sm text-gray-500">No matches yet.</div></div>'
+                        : state.matches.slice(0, 15).map(function(m, i) { return renderMatchCard(m, state.player.username, i); }).join('');
+                }
+            }
+        };
+        fmt.addEventListener('change', handler);
+        df.addEventListener('change', handler);
+        dt.addEventListener('change', handler);
+    }
 }
 
-ReactDOM.createRoot(document.getElementById('playerRoot')).render(<App/>);
-{% endraw %}
+function renderAvatar(p, rank, initial) {
+    var showSvg = !p.avatar_url;
+    var avatarHtml;
+    if (showSvg) {
+        avatarHtml = renderSvgHelmet(rank.color, initial);
+    } else {
+        avatarHtml = '<img src="' + esc(p.avatar_url) + '" alt="' + esc(p.username) + '" class="absolute inset-0 w-full h-full object-cover z-10" id="profileAvatarImg">';
+    }
+    return '<div class="relative shrink-0 group" id="avatarWrap">' +
+        '<div class="absolute -inset-1 rounded-full avatar-ring z-0" style="--ring-color-a:' + rank.color + '60;--ring-color-b:' + rank.color + '20"></div>' +
+        '<div class="relative z-10 w-24 h-24 rounded-full flex items-center justify-center overflow-hidden" style="background:linear-gradient(135deg,' + rank.color + '25,#141416)">' +
+        '<div id="avatarContent" class="w-full h-full flex items-center justify-center">' + avatarHtml + '</div></div>' +
+        '<button id="avatarPickerBtn" class="absolute -bottom-1 -right-1 z-20 w-8 h-8 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" style="background:#e8197d;color:#fff;box-shadow:0 0 8px rgba(232,25,125,0.5)">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>' +
+        '<div id="avatarPicker" class="hidden absolute top-0 left-full ml-3 z-30 rounded-xl p-3 flex flex-col gap-3 min-w-[200px]" style="background:#1c1c1f;border:1px solid rgba(255,255,255,0.08);box-shadow:0 8px 32px rgba(0,0,0,0.6)">' +
+        '<input id="avatarFileInput" type="file" accept="image/*" class="hidden">' +
+        '<button id="avatarUploadBtn" class="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all" style="background:rgba(232,25,125,0.15);color:#e8197d">Upload image</button>' +
+        '<button id="avatarUrlBtn" class="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all" style="background:rgba(255,255,255,0.05);color:#ccc">Set URL</button>' +
+        (p.avatar_url ? '<button id="avatarRemoveBtn" class="w-full text-xs font-bold py-2 px-3 rounded-lg text-left transition-all" style="background:rgba(239,68,68,0.15);color:#ef4444">Remove avatar</button>' : '') +
+        '</div></div>';
+}
+
+function renderSvgHelmet(fill, initial) {
+    return '<svg viewBox="0 0 80 80" class="w-full h-full" style="filter:drop-shadow(0 0 6px ' + fill + '40)">' +
+        '<path d="M24 42 Q24 24 40 20 Q56 24 56 42 L56 52 L24 52 Z" fill="' + fill + '18" stroke="' + fill + '" stroke-width="1.5" stroke-opacity="0.4"/>' +
+        '<path d="M28 38 Q28 26 40 23 Q52 26 52 38 L52 50 L28 50 Z" fill="' + fill + '10" stroke="' + fill + '" stroke-width="1" stroke-opacity="0.3"/>' +
+        '<path d="M30 35 Q30 30 40 28 Q50 30 50 35 L50 42 L30 42 Z" fill="' + fill + '30" stroke="' + fill + '" stroke-width="1"/>' +
+        '<circle cx="36" cy="34" r="2" fill="' + fill + '" opacity="0.8" class="sparkline-dot"/>' +
+        '<text x="40" y="66" text-anchor="middle" fill="#fff" font-size="18" font-weight="800" style="filter:drop-shadow(0 0 3px ' + fill + ')">' + initial + '</text>' +
+        '<line x1="52" y1="29" x2="56" y2="27" stroke="' + fill + '" stroke-width="0.8" opacity="0.4"/>' +
+        '<line x1="52" y1="29" x2="54" y2="33" stroke="' + fill + '" stroke-width="0.8" opacity="0.4"/>' +
+        '</svg>';
+}
+
+function renderWinRateCircle(percentage, color) {
+    var r = 50, circ = 2 * Math.PI * r;
+    var val = percentage.toFixed(0) + '%';
+    return '<div class="flex flex-col items-center gap-2 wr-container">' +
+        '<svg width="130" height="130" viewBox="0 0 130 130">' +
+        '<circle cx="65" cy="65" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>' +
+        '<circle class="wr-circle-fill" cx="65" cy="65" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="8" stroke-linecap="round" stroke-dasharray="' + circ + '" stroke-dashoffset="' + circ + '" style="transition:stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1)" transform="rotate(-90 65 65)"/>' +
+        '<text x="65" y="58" text-anchor="middle" fill="#fff" font-size="28" font-weight="800" class="wr-text">' + val + '</text>' +
+        '<text x="65" y="80" text-anchor="middle" fill="#666" font-size="11" font-weight="600">Win Rate</text>' +
+        '</svg></div>';
+}
+
+function renderBar(label, value, max, color, delay) {
+    var pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+    return '<div class="space-y-1.5 animate-bar" data-delay="' + delay + '" data-pct="' + pct + '">' +
+        '<div class="flex items-center justify-between text-xs">' +
+        '<span class="text-gray-500 font-semibold uppercase tracking-wider">' + label + '</span>' +
+        '<span class="font-bold" style="color:' + color + '">' + value + '</span></div>' +
+        '<div class="h-2.5 rounded-full" style="background:rgba(255,255,255,0.05)">' +
+        '<div class="h-full rounded-full transition-all duration-1000 ease-out" style="width:0%;background:' + color + ';box-shadow:0 0 12px ' + color + '40"></div></div></div>';
+}
+
+function renderSparkline(data, color) {
+    var width = 280, height = 60, pt = 8, pb = 8;
+    var chartH = height - pt - pb;
+    var min = Math.min.apply(null, data);
+    var max = Math.max.apply(null, data);
+    var range = max - min || 1;
+    var step = data.length > 1 ? width / (data.length - 1) : 0;
+    var pts = data.map(function(v, i) { return { x: i * step, y: pt + chartH - ((v - min) / range) * chartH }; });
+    if (pts.length === 0) return '';
+    var linePath = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1); }).join(' ');
+    var last = pts[pts.length - 1];
+    var gradientId = 'sparkGrad_' + Math.random().toString(36).slice(2, 8);
+    return '<div class="pt-2"><div class="flex items-center justify-between text-[10px] text-gray-600 font-semibold uppercase tracking-widest mb-2">' +
+        '<span>ELO Trend</span><span style="color:' + color + '">+' + Math.round(data[data.length - 1] - data[0]) + '</span></div>' +
+        '<svg width="100%" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" class="overflow-visible">' +
+        '<defs><linearGradient id="' + gradientId + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + color + '" stop-opacity="0.15"/><stop offset="100%" stop-color="' + color + '" stop-opacity="0"/></linearGradient></defs>' +
+        '<path d="' + linePath + ' L' + last.x.toFixed(1) + ' ' + height + ' L' + pts[0].x.toFixed(1) + ' ' + height + ' Z" fill="url(#' + gradientId + ')"/>' +
+        '<path d="' + linePath + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="300" class="animate-draw-line"/>' +
+        '<circle cx="' + last.x + '" cy="' + last.y + '" r="4" fill="' + color + '" class="sparkline-dot" style="filter:drop-shadow(0 0 6px ' + color + ')"/>' +
+        '</svg></div>';
+}
+
+function renderGlowCard(icon, label, value, color, delay) {
+    return '<div class="card p-4 text-center animate-slide-up opacity-0 animate-stat-glow" style="--stat-color:' + color + '40;--stat-color-transparent:' + color + '10;border:1px solid ' + color + '20;animation-delay:' + delay + 's">' +
+        '<div class="text-lg mb-1">' + icon + '</div>' +
+        '<div class="text-2xl font-extrabold text-white">' + esc(value) + '</div>' +
+        '<div class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider mt-0.5">' + label + '</div></div>';
+}
+
+function renderMatchCard(match, playerName, index) {
+    var isWin = isPlayerInTeam(playerName, match.winner_name);
+    var isA = isPlayerInTeam(playerName, match.team_a_name);
+    var opponent = isA ? match.team_b_name : match.team_a_name;
+    var delta = isWin
+        ? (isA ? (match.elo_delta_a || 0) : (match.elo_delta_b || 0))
+        : (isA ? (match.elo_delta_b || 0) : (match.elo_delta_a || 0));
+    var borderColor = isWin ? '#00e676' : '#ef4444';
+    var delay = 0.08 * (index + 1);
+    var dateStr = new Date(match.played_at).toLocaleDateString();
+    return '<div class="card card-hover match-card ' + (isWin ? 'match-card-win' : 'match-card-loss') + ' animate-slide-up opacity-0" style="animation-delay:' + delay + 's;border-left:3px solid ' + borderColor + ';box-shadow:inset 0 0 40px ' + (isWin ? 'rgba(0,230,118,0.08)' : 'rgba(239,68,68,0.08)') + '">' +
+        '<div class="relative z-10 p-4 flex items-center justify-between gap-4">' +
+        '<div class="flex items-center gap-3 min-w-0">' +
+        '<div class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0" style="background:' + borderColor + '15;color:' + borderColor + '">' + esc(opponent.charAt(0)) + '</div>' +
+        '<div class="min-w-0"><div class="text-sm font-bold text-white truncate">' + esc(opponent) + '</div>' +
+        '<div class="flex items-center gap-2 mt-0.5"><span class="text-[10px] font-semibold uppercase tracking-wider text-gray-600">' + esc(match.format) + '</span>' +
+        '<span class="text-[10px] text-gray-700">\u00b7</span>' +
+        '<span class="text-[10px] text-gray-600">' + dateStr + '</span></div></div></div>' +
+        '<div class="flex items-center gap-3 shrink-0">' +
+        '<span class="text-sm font-extrabold ' + (isWin ? 'text-white' : 'text-gray-400') + '">' + match.score_a + '\u2013' + match.score_b + '</span>' +
+        '<span class="text-xs font-extrabold px-2 py-0.5 rounded" style="background:' + (isWin ? 'rgba(0,230,118,0.2)' : 'rgba(239,68,68,0.2)') + ';color:' + borderColor + '">' + (isWin ? '+' : '') + delta + '</span>' +
+        '</div></div></div>';
+}
+
+function renderSeasons(seasons) {
+    var html = '<div class="mb-6 animate-slide-up opacity-0 stagger-4">' +
+        '<div class="flex items-center justify-between mb-4"><h2 class="text-sm font-bold text-white uppercase tracking-widest">Season History</h2></div>' +
+        '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">';
+    for (var i = 0; i < seasons.length; i++) {
+        var s = seasons[i];
+        var dateStr = s.season_end ? new Date(s.season_end).toLocaleDateString() : '';
+        html += '<div class="card p-4 animate-slide-up opacity-0" style="background:#141416;animation-delay:' + (0.05 * i) + 's">' +
+            '<div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-white">' + esc(s.season_name) + '</span><span class="text-[10px] text-gray-600 font-semibold">#' + (s.position || '') + '</span></div>' +
+            '<div class="flex items-center gap-2 mb-2"><div class="w-2.5 h-2.5 rounded-full" style="background:' + s.rank_color + '"></div>' +
+            '<span class="text-xs font-bold" style="color:' + s.rank_color + '">' + esc(s.rank_title) + '</span>' +
+            '<span class="text-xs text-gray-600 ml-auto">ELO ' + s.elo + '</span></div>' +
+            '<div class="flex items-center gap-3 text-[10px] text-gray-600 font-semibold">' +
+            '<span style="color:#00e676">' + s.wins + 'W</span><span class="text-gray-700">\u00b7</span><span style="color:#ef4444">' + s.losses + 'L</span>' +
+            (dateStr ? '<span class="ml-auto">' + dateStr + '</span>' : '') +
+            '</div></div>';
+    }
+    html += '</div></div>';
+    return html;
+}
+
+// ─── AVATAR PICKER WIRING ────────────────────────────────
+
+function wireAvatarPicker(root, state, rank, initial) {
+    var btn = document.getElementById('avatarPickerBtn');
+    var picker = document.getElementById('avatarPicker');
+    var fileInput = document.getElementById('avatarFileInput');
+    var uploadBtn = document.getElementById('avatarUploadBtn');
+    var urlBtn = document.getElementById('avatarUrlBtn');
+    var removeBtn = document.getElementById('avatarRemoveBtn');
+
+    if (btn && picker) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            picker.classList.toggle('hidden');
+        });
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#avatarWrap')) picker.classList.add('hidden');
+        });
+    }
+
+    function onAvatarChange(newUrl) {
+        state.player.avatar_url = newUrl;
+        var content = document.getElementById('avatarContent');
+        if (content) {
+            if (newUrl) {
+                content.innerHTML = '<img src="' + esc(newUrl) + '" alt="' + esc(state.player.username) + '" class="absolute inset-0 w-full h-full object-cover z-10">';
+            } else {
+                content.innerHTML = renderSvgHelmet(rank.color, initial);
+            }
+        }
+        picker.classList.add('hidden');
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', async function(e) {
+            var f = e.target.files[0];
+            if (!f) return;
+            var form = new FormData();
+            form.append('file', f);
+            var res = await window.apiFetch('/api/players/' + PLAYER_ID + '/avatar', { method: 'POST', body: form });
+            if (res.ok) { var d = await res.json(); onAvatarChange(d.avatar_url); }
+        });
+    }
+
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function() { fileInput.click(); });
+    }
+
+    if (urlBtn) {
+        urlBtn.addEventListener('click', async function() {
+            var url = prompt('Enter image URL:');
+            if (!url) return;
+            var res = await window.apiFetch('/api/players/' + PLAYER_ID + '/avatar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url: url}) });
+            if (res.ok) { var d = await res.json(); onAvatarChange(d.avatar_url); }
+        });
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', async function() {
+            var res = await window.apiFetch('/api/players/' + PLAYER_ID + '/avatar', { method: 'DELETE' });
+            if (res.ok) onAvatarChange(null);
+        });
+    }
+}
+
+// ─── ANIMATE BARS ON LOAD ────────────────────────────────
+
+function animateBars() {
+    var bars = document.querySelectorAll('.animate-bar');
+    bars.forEach(function(el) {
+        var delay = parseInt(el.dataset.delay) || 200;
+        var pct = parseFloat(el.dataset.pct) || 0;
+        setTimeout(function() {
+            var bar = el.querySelector('.h-full');
+            if (bar) bar.style.width = pct + '%';
+        }, delay);
+    });
+}
+
+// ─── LOAD DATA AND RENDER ────────────────────────────────
+
+(function() {
+    var root = document.getElementById('playerRoot');
+    var state = {
+        player: null,
+        matches: [],
+        eloHistory: [],
+        seasons: [],
+        loadState: 'loading',
+    };
+
+    (async function() {
+        var res = await fetch('/api/players/' + PLAYER_ID);
+        if (!res.ok) {
+            root.innerHTML = '<div class="card p-12 text-center"><p class="text-sm text-gray-500">Player not found.</p><a href="/leaderboard" class="btn btn-pink mt-4 inline-block text-sm">Back</a></div>';
+            return;
+        }
+        var data = await res.json();
+        state.player = data;
+        var best = data.ratings.slice().sort(function(a, b) { return b.elo - a.elo; })[0];
+        var rank = best ? { label: best.rank_title, color: best.rank_color } : getRank(best ? best.elo : 0);
+        document.documentElement.style.setProperty('--rank-color', rank.color);
+        document.documentElement.style.setProperty('--rank-color-transparent', rank.color + '30');
+
+        var mr = await fetch('/api/matches?player_id=' + PLAYER_ID + '&limit=50');
+        if (mr.ok) state.matches = await mr.json();
+
+        var [histRes, seasonsRes] = await Promise.all([
+            fetch('/api/players/' + PLAYER_ID + '/history?limit=200'),
+            fetch('/api/players/' + PLAYER_ID + '/seasons'),
+        ]);
+        if (histRes.ok) state.eloHistory = await histRes.json();
+        if (seasonsRes.ok) state.seasons = await seasonsRes.json();
+
+        state.loadState = 'loaded';
+        renderProfile(root, state);
+        setTimeout(animateBars, 50);
+    })();
+})();
 </script>
 {% endblock %}

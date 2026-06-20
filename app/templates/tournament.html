@@ -84,7 +84,7 @@ async function loadTournament() {
     const sca = parseInt(document.getElementById('sca_'+mid).value) || 0;
     const scb = parseInt(document.getElementById('scb_'+mid).value) || 0;
     if (sca === scb) { toast('Scores cannot be tied.','error'); return; }
-    const r = await fetch(`/api/tournaments/${TMT_ID}/report-match`, {
+    const r = await window.apiFetch(`/api/tournaments/${TMT_ID}/report-match`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({match_id: mid, score_a: sca, score_b: scb})
     });

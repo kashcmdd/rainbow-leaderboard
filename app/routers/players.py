@@ -13,6 +13,7 @@ from app.models import Player, Rating, RatingHistory, Match, Team, TeamMember, S
 from app.schemas import PlayerCreate, PlayerOut, AvatarSet
 from app.schemas_admin import PlayerUpdate
 from app.ranks import get_rank
+from app.csrf import csrf_protect
 
 AVATAR_DIR = Path(__file__).parent.parent / "static" / "avatars"
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/players", tags=["players"])
 
 
 @router.post("", response_model=PlayerOut)
-async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db)):
+async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db), _: None = Depends(csrf_protect)):
     existing = await db.execute(select(Player).where(Player.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Player already exists")
@@ -42,8 +43,130 @@ async def list_players(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
+@router.get("/compare")
+async def compare_players(
+    player1: str = Query(...),
+    player2: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    p1_id = uuid.UUID(player1)
+    p2_id = uuid.UUID(player2)
+
+    async def _player_data(player_id):
+        result = await db.execute(
+            select(Player)
+            .options(selectinload(Player.ratings))
+            .where(Player.id == player_id)
+        )
+        player = result.scalar_one_or_none()
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+        position_cache = {}
+        for r in player.ratings:
+            if r.format not in position_cache:
+                count_higher = await db.execute(
+                    select(func.count(Rating.id)).where(
+                        Rating.format == r.format,
+                        Rating.player_id.isnot(None),
+                        Rating.elo > r.elo,
+                    )
+                )
+                higher_count = count_higher.scalar() or 0
+                position_cache[r.format] = higher_count + 1
+        ratings_list = [
+            {
+                "format": r.format,
+                "elo": r.elo,
+                "rank_title": get_rank(r.elo, position_cache.get(r.format))[0],
+                "rank_color": get_rank(r.elo, position_cache.get(r.format))[1],
+                "matches_played": r.matches_played,
+                "wins": r.wins,
+                "losses": r.losses,
+                "streak": r.streak or 0,
+                "top_position": r.top_position,
+                "is_decaying": r.is_decaying,
+            }
+            for r in player.ratings
+        ]
+        return {
+            "id": str(player.id),
+            "username": player.username,
+            "avatar_url": player.avatar_url,
+            "discord_id": player.discord_id,
+            "created_at": player.created_at.isoformat(),
+            "ratings": ratings_list,
+        }
+
+    p1_data = await _player_data(p1_id)
+    p2_data = await _player_data(p2_id)
+
+    p1_team_ids = (await db.execute(
+        select(TeamMember.team_id).where(TeamMember.player_id == p1_id)
+    )).scalars().all()
+
+    p2_team_ids = (await db.execute(
+        select(TeamMember.team_id).where(TeamMember.player_id == p2_id)
+    )).scalars().all()
+
+    h2h_matches = await db.execute(
+        select(Match).options(
+            selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
+            selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
+        ).where(
+            ((Match.team_a_id.in_(p1_team_ids)) & (Match.team_b_id.in_(p2_team_ids))) |
+            ((Match.team_a_id.in_(p2_team_ids)) & (Match.team_b_id.in_(p1_team_ids)))
+        ).order_by(Match.played_at.desc())
+    )
+    h2h_matches = h2h_matches.scalars().all()
+
+    p1_wins = 0
+    p2_wins = 0
+    match_list = []
+
+    for m in h2h_matches:
+        def team_name(team):
+            return " + ".join(mem.player.username for mem in team.members) if team and team.members else "Unknown"
+        a_name = team_name(m.team_a)
+        b_name = team_name(m.team_b)
+        p1_in_a = any(str(mem.player_id) == player1 for mem in m.team_a.members) if m.team_a else False
+        p1_in_b = any(str(mem.player_id) == player1 for mem in m.team_b.members) if m.team_b else False
+        opponent = b_name if p1_in_a else a_name
+        p1_won = None
+        if m.winner_team_id:
+            if p1_in_a and m.winner_team_id == m.team_a_id:
+                p1_won = True
+            elif p1_in_b and m.winner_team_id == m.team_b_id:
+                p1_won = True
+            elif p1_in_a or p1_in_b:
+                p1_won = False
+        if p1_won is True:
+            p1_wins += 1
+        elif p1_won is False:
+            p2_wins += 1
+        match_list.append({
+            "match_id": str(m.id),
+            "opponent": opponent,
+            "result": "win" if p1_won else "loss",
+            "score_a": m.score_a,
+            "score_b": m.score_b,
+            "format": m.format,
+            "timestamp": m.played_at.isoformat(),
+        })
+
+    return {
+        "player1": p1_data,
+        "player2": p2_data,
+        "head_to_head": {
+            "player1_wins": p1_wins,
+            "player2_wins": p2_wins,
+            "total_matches": len(match_list),
+            "matches": match_list,
+        },
+    }
+
+
 @router.get("/{player_id}")
-async def get_player(player_id: str, db: AsyncSession = Depends(get_db)):
+async def get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Player)
         .options(selectinload(Player.ratings))
@@ -93,7 +216,7 @@ async def get_player(player_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{player_id}")
-async def update_player(player_id: str, body: PlayerUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
+async def update_player(player_id: uuid.UUID, body: PlayerUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
     result = await db.execute(select(Player).where(Player.id == player_id))
     player = result.scalar_one_or_none()
     if not player:
@@ -127,10 +250,12 @@ async def update_player(player_id: str, body: PlayerUpdate, db: AsyncSession = D
 
 @router.post("/{player_id}/avatar")
 async def set_avatar(
-    player_id: str,
+    player_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    body: AvatarSet = None,
     file: UploadFile = File(None),
+    _: None = Depends(csrf_protect),
 ):
     result = await db.execute(select(Player).where(Player.id == player_id))
     player = result.scalar_one_or_none()
@@ -167,6 +292,13 @@ async def set_avatar(
         url = body.get("url")
         if not url:
             raise HTTPException(status_code=400, detail="Provide a 'url' field in JSON body or upload a 'file'")
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(status_code=400, detail="Invalid URL protocol")
+        parsed = __import__("urllib.parse").urlparse(url)
+        hostname = parsed.hostname or ""
+        blocked = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "::ffff:0:0", "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0", "db", "metadata.google.internal", "metadata.internal"}
+        if hostname in blocked or hostname.startswith("169.254.") or hostname.startswith("10.") or hostname.startswith("172.") or hostname.startswith("192.168."):
+            raise HTTPException(status_code=400, detail="URL cannot point to internal services")
         player.avatar_url = url
 
     await db.commit()
@@ -174,7 +306,7 @@ async def set_avatar(
 
 
 @router.delete("/{player_id}/avatar")
-async def remove_avatar(player_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def remove_avatar(player_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db), _: None = Depends(csrf_protect)):
     result = await db.execute(select(Player).where(Player.id == player_id))
     player = result.scalar_one_or_none()
     if not player:
@@ -192,7 +324,7 @@ async def remove_avatar(player_id: str, request: Request, db: AsyncSession = Dep
 
 
 @router.delete("/{player_id}")
-async def delete_player(player_id: str, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
+async def delete_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
     result = await db.execute(select(Player).where(Player.id == player_id))
     player = result.scalar_one_or_none()
     if not player:
@@ -204,7 +336,7 @@ async def delete_player(player_id: str, db: AsyncSession = Depends(get_db), _: d
 
 @router.get("/{player_id}/history")
 async def get_player_history(
-    player_id: str,
+    player_id: uuid.UUID,
     format: str = Query("1v1"),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -274,7 +406,7 @@ async def get_player_history(
 
 
 @router.get("/{player_id}/seasons")
-async def get_player_seasons(player_id: str, db: AsyncSession = Depends(get_db)):
+async def get_player_seasons(player_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     player = await db.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")

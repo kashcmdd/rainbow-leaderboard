@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     }
     discord_client_id: str = ""
     discord_client_secret: str = ""
-    discord_redirect_uri: str = "http://18.117.227.140:8000/auth/callback"
-    admin_discord_ids: list[str] = ["1415420243836407878"]
-    secret_key: str = "change-me-to-a-random-string"
+    discord_redirect_uri: str = ""
+    admin_discord_ids: list[str] = []
+    secret_key: str = ""
 
     class Config:
         env_file = ".env"
@@ -31,3 +31,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if not settings.secret_key:
+    import warnings
+    warnings.warn("SECRET_KEY is empty! Set a SECRET_KEY in .env")
+if not settings.discord_redirect_uri:
+    import warnings
+    warnings.warn("DISCORD_REDIRECT_URI is empty! Set it in .env")

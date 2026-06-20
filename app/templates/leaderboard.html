@@ -24,6 +24,17 @@
             {{ f }}
         </a>
         {% endfor %}
+        <a id="tabToggle" href="#"
+           class="px-4 py-1.5 text-xs font-bold rounded-full transition-all"
+           style="background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);">
+            Teams
+        </a>
+        <a href="/api/leaderboard/{{ format }}/export?type=csv"
+           class="px-3 py-1.5 text-xs font-bold rounded-full transition-all inline-flex items-center gap-1"
+           style="background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);"
+           title="Download CSV">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
     </div>
 </div>
 
@@ -56,6 +67,7 @@
 <script>
 const FORMAT = new URLSearchParams(window.location.search).get('format') || '1v1';
 const RANK_FILTER = new URLSearchParams(window.location.search).get('rank') || '';
+let TAB = new URLSearchParams(window.location.search).get('tab') || 'players';
 
 function rankGlow(hex) {
     const c = hex.replace('#','');
@@ -66,9 +78,15 @@ function rankGlow(hex) {
 }
 
 async function loadLeaderboard() {
-    const url = `/api/leaderboard/${FORMAT}${RANK_FILTER ? `?rank=${RANK_FILTER}` : ''}`;
+    const scrollY = window.scrollY;
+    const url = `/api/leaderboard/${FORMAT}${TAB === 'teams' ? '/team' : ''}${RANK_FILTER ? `?rank=${RANK_FILTER}` : ''}`;
     const res = await fetch(url);
-    const data = await res.json();
+    let data = await res.json();
+    data = data.map(e => {
+        e._id = TAB === 'teams' ? (e.team_id || e.name) : e.player_id;
+        e._linkPrefix = TAB === 'teams' ? '/team/' : '/player/';
+        return e;
+    });
     const container = document.getElementById('leaderboard');
 
     if (data.length === 0) {
@@ -82,11 +100,11 @@ async function loadLeaderboard() {
     // Fetch player avatars for all entries
     const avatarMap = {};
     for (const e of data) {
-        if (e.player_id) {
+        if (e._id) {
             try {
-                const r = await fetch(`/api/players/${e.player_id}`);
+                const r = await fetch(TAB === 'teams' ? `/api/teams/${e._id}` : `/api/players/${e._id}`);
                 const pd = await r.json();
-                avatarMap[e.player_id] = pd.avatar_url || null;
+                avatarMap[e._id] = (TAB === 'teams' ? pd.logo_url : pd.avatar_url) || null;
             } catch {}
         }
     }
@@ -108,17 +126,16 @@ async function loadLeaderboard() {
             const e = p.entry;
             const wr = (e.win_rate * 100).toFixed(0);
             const rankColor = e.rank_color;
-            const avatar = avatarMap[e.player_id];
+            const avatar = avatarMap[e._id];
             const initial = e.name.charAt(0).toUpperCase();
             html += `
-            <a href="/player/${e.player_id}" class="card p-5 podium-card animate-slide-up opacity-0 ${p.delay}" style="--medal-color:${medals[p.place]};border-top:3px solid ${medals[p.place]};">
-                <div class="flex items-center justify-between mb-3">
+            <a href="${e._linkPrefix}${e._id}" class="card p-5 podium-card animate-slide-up opacity-0 ${p.delay}" style="--medal-color:${medals[p.place]};border-top:3px solid ${medals[p.place]};">\n                <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                         <span class="medal-icon" style="color:${medals[p.place]}">${p.place === '1' ? '\u2655' : p.place === '2' ? '\u2656' : '\u2657'}</span>
                         <span class="text-xs font-extrabold uppercase tracking-wider" style="color:${medals[p.place]}">${medalNames[p.place]}</span>
                     </div>
                     <span class="text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5" style="background:${rankColor}15;color:${rankColor};">
-                        <img src="/static/rank-icons/${e.rank_title.toLowerCase().replace(/ /g, '_')}.svg" class="w-4 h-4" style="filter:drop-shadow(0 0 3px ${rankGlow(rankColor)});">
+                        <img src="/static/rank-icons/${e.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${e.rank_title}" class="w-4 h-4" style="filter:drop-shadow(0 0 3px ${rankGlow(rankColor)});">
                         ${e.rank_title}
                     </span>
                 </div>
@@ -153,7 +170,7 @@ async function loadLeaderboard() {
     const allEntries = data;
     html += `<div class="card overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
         <th class="py-3.5 px-2 sm:px-4 text-left w-10 sm:w-12">#</th>
-        <th class="py-3.5 px-2 sm:px-4 text-left">Player</th>
+        <th class="py-3.5 px-2 sm:px-4 text-left">${TAB === 'teams' ? 'Team' : 'Player'}</th>
         <th class="py-3.5 px-2 sm:px-4 text-left">Rank</th>
         <th class="py-3.5 px-2 sm:px-4 text-right">ELO</th>
         <th class="py-3.5 px-2 sm:px-4 text-right">W</th>
@@ -172,14 +189,14 @@ async function loadLeaderboard() {
             <td class="py-3 px-2 sm:px-4">
                 <div class="flex items-center gap-2 sm:gap-3">
                     <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0 overflow-hidden" style="background:${rc}15;color:${rc};">
-                        ${avatarMap[entry.player_id] ? `<img src="${avatarMap[entry.player_id]}" class="w-full h-full object-cover">` : initial}
+                        ${avatarMap[entry._id] ? `<img src="${avatarMap[entry._id]}" class="w-full h-full object-cover">` : initial}
                     </div>
-                    <a href="/player/${entry.player_id}" class="text-xs sm:text-sm font-semibold text-white hover:text-[#e8197d] transition-colors truncate max-w-[80px] sm:max-w-none">${entry.name}</a>
+                    <a href="${entry._linkPrefix}${entry._id}" class="text-xs sm:text-sm font-semibold text-white hover:text-[#e8197d] transition-colors truncate max-w-[80px] sm:max-w-none">${entry.name}</a>
                 </div>
             </td>
             <td class="py-3 px-2 sm:px-4">
                 <span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2.5 py-1 rounded-full whitespace-nowrap inline-flex items-center gap-1" style="background:${rc}12;color:${rc};">
-                    <img src="/static/rank-icons/${entry.rank_title.toLowerCase().replace(/ /g, '_')}.svg" class="w-3 h-3 sm:w-3.5 sm:h-3.5" style="filter:drop-shadow(0 0 3px ${rankGlow(rc)});">
+                    <img src="/static/rank-icons/${entry.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${entry.rank_title}" class="w-3 h-3 sm:w-3.5 sm:h-3.5" style="filter:drop-shadow(0 0 3px ${rankGlow(rc)});">
                     ${entry.rank_title}
                 </span>
             </td>
@@ -204,13 +221,19 @@ async function loadLeaderboard() {
     container.innerHTML = html;
 
     // Search filter
-    document.getElementById('playerSearch').addEventListener('input', function() {
-        const q = this.value.toLowerCase();
+    const searchInput = document.getElementById('playerSearch');
+    const applyFilter = () => {
+        const q = searchInput.value.toLowerCase();
         container.querySelectorAll('tbody tr, .grid a').forEach(el => {
             const name = el.textContent.toLowerCase();
             el.style.display = name.includes(q) ? '' : 'none';
         });
-    });
+    };
+    searchInput.addEventListener('input', applyFilter);
+    if (searchInput.value) applyFilter();
+
+    // Restore scroll position
+    window.scrollTo(0, scrollY);
 
     // Rank filter
     const rf = document.getElementById('rankFilter');
@@ -222,6 +245,26 @@ async function loadLeaderboard() {
         window.location.search = params.toString();
     });
 }
+
+// Tab toggle
+const tabToggle = document.getElementById('tabToggle');
+tabToggle.textContent = TAB === 'teams' ? 'Players' : 'Teams';
+tabToggle.style.cssText = TAB === 'teams'
+    ? 'background:#e8197d;color:#fff;box-shadow:0 0 12px rgba(232,25,125,0.3);'
+    : 'background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);';
+tabToggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    const newTab = TAB === 'teams' ? 'players' : 'teams';
+    const url = new URL(window.location);
+    url.searchParams.set('tab', newTab);
+    history.pushState({}, '', url);
+    TAB = newTab;
+    tabToggle.textContent = TAB === 'teams' ? 'Players' : 'Teams';
+    tabToggle.style.cssText = TAB === 'teams'
+        ? 'background:#e8197d;color:#fff;box-shadow:0 0 12px rgba(232,25,125,0.3);'
+        : 'background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);';
+    loadLeaderboard();
+});
 
 loadLeaderboard();
 setInterval(loadLeaderboard, 10000);

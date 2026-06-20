@@ -1,3 +1,5 @@
+import csv
+import io
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +14,8 @@ from app.database import get_db
 from app.deps import require_admin
 from app.models import Player, Rating, RatingHistory, Match, TeamMember, Team, AuditLog, Season, SeasonSnapshot
 from app.ranks import RANKS, get_rank
+from app.csrf import csrf_protect
+from app.schemas_admin import NotesUpdate, MatchUpdate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -134,7 +138,7 @@ async def get_recent_matches(limit: int = 50, db: AsyncSession = Depends(get_db)
 
 
 @router.delete("/matches/{match_id}")
-async def delete_match(match_id: str, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
+async def delete_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
     match_uuid = uuid.UUID(match_id)
     await db.execute(sa_delete(RatingHistory).where(RatingHistory.match_id == match_uuid))
     result = await db.execute(select(Match).where(Match.id == match_uuid))
@@ -147,7 +151,7 @@ async def delete_match(match_id: str, db: AsyncSession = Depends(get_db), _: dic
 
 
 @router.post("/bulk/reset-stats")
-async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     player_ids = [uuid.UUID(pid) for pid in body.get("player_ids", [])]
     for pid in player_ids:
         team_ids_subq = select(TeamMember.team_id).where(TeamMember.player_id == pid).subquery()
@@ -169,7 +173,7 @@ async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin
 
 
 @router.post("/bulk/delete")
-async def bulk_delete_players(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def bulk_delete_players(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     player_ids = body.get("player_ids", [])
     for pid_str in player_ids:
         pid = uuid.UUID(pid_str)
@@ -182,7 +186,7 @@ async def bulk_delete_players(body: dict, db: AsyncSession = Depends(get_db), ad
 
 
 @router.post("/bulk/clear-avatar")
-async def bulk_clear_avatar(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def bulk_clear_avatar(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     player_ids = body.get("player_ids", [])
     for pid_str in player_ids:
         pid = uuid.UUID(pid_str)
@@ -195,7 +199,7 @@ async def bulk_clear_avatar(body: dict, db: AsyncSession = Depends(get_db), admi
 
 
 @router.post("/clear-leaderboard")
-async def clear_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def clear_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     await db.execute(sa_delete(RatingHistory))
     await db.execute(sa_delete(Match))
     await db.execute(sa_delete(Rating))
@@ -205,7 +209,7 @@ async def clear_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict
 
 
 @router.post("/reset-leaderboard")
-async def reset_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def reset_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     await db.execute(sa_delete(RatingHistory))
     await db.execute(sa_delete(Match))
     await db.execute(sa_update(Rating).values(elo=0, wins=0, losses=0, matches_played=0))
@@ -215,7 +219,7 @@ async def reset_leaderboard(db: AsyncSession = Depends(get_db), admin_user: dict
 
 
 @router.post("/players/{player_id}/reset-stats")
-async def reset_player_stats(player_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def reset_player_stats(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     result = await db.execute(select(Rating).where(Rating.player_id == player_id))
     ratings = result.scalars().all()
     if not ratings:
@@ -241,7 +245,7 @@ async def reset_player_stats(player_id: str, db: AsyncSession = Depends(get_db),
 
 
 @router.post("/clear-all-player-stats")
-async def clear_all_player_stats(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def clear_all_player_stats(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     await db.execute(sa_delete(RatingHistory))
     await db.execute(sa_delete(Match))
     await db.execute(sa_update(Rating).values(elo=0, wins=0, losses=0, matches_played=0))
@@ -251,7 +255,7 @@ async def clear_all_player_stats(db: AsyncSession = Depends(get_db), admin_user:
 
 
 @router.post("/players/{player_id}/toggle-admin")
-async def toggle_admin(player_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def toggle_admin(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     pid = uuid.UUID(player_id)
     player = await db.get(Player, pid)
     if not player:
@@ -283,7 +287,7 @@ async def get_audit_log(limit: int = 100, db: AsyncSession = Depends(get_db), _:
 
 
 @router.post("/clear-audit-log")
-async def clear_audit_log(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def clear_audit_log(db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     await db.execute(sa_delete(AuditLog))
     await _log_audit(db, admin_user, "clear_audit_log")
     await db.commit()
@@ -291,7 +295,7 @@ async def clear_audit_log(db: AsyncSession = Depends(get_db), admin_user: dict =
 
 
 @router.post("/players/{player_id}/adjust-elo")
-async def adjust_elo(player_id: str, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def adjust_elo(player_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     pid = uuid.UUID(player_id)
     player = await db.get(Player, pid)
     if not player:
@@ -320,7 +324,7 @@ async def adjust_elo(player_id: str, body: dict, db: AsyncSession = Depends(get_
 
 
 @router.post("/players/{player_id}/toggle-ban")
-async def toggle_ban(player_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def toggle_ban(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     pid = uuid.UUID(player_id)
     player = await db.get(Player, pid)
     if not player:
@@ -335,7 +339,7 @@ async def toggle_ban(player_id: str, db: AsyncSession = Depends(get_db), admin_u
 
 
 @router.post("/players/{player_id}/avatar")
-async def admin_set_avatar(player_id: str, request: Request, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def admin_set_avatar(player_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     pid = uuid.UUID(player_id)
     player = await db.get(Player, pid)
     if not player:
@@ -420,7 +424,7 @@ async def get_season(season_id: str, db: AsyncSession = Depends(get_db), _: dict
 
 
 @router.post("/close-season")
-async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     name = body.get("name", "Season")
     result = await db.execute(
         select(Season).where(Season.status == "active").limit(1)
@@ -473,7 +477,7 @@ async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_use
 
 
 @router.delete("/players/{player_id}/avatar")
-async def admin_remove_avatar(player_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def admin_remove_avatar(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     pid = uuid.UUID(player_id)
     player = await db.get(Player, pid)
     if not player:
@@ -482,3 +486,79 @@ async def admin_remove_avatar(player_id: str, db: AsyncSession = Depends(get_db)
     await _log_audit(db, admin_user, "remove_avatar", target_id=player_id, target_name=player.username)
     await db.commit()
     return {"status": "ok"}
+
+
+@router.get("/players/{player_id}")
+async def admin_get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
+    pid = uuid.UUID(player_id)
+    player = await db.get(Player, pid)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return {
+        "id": str(player.id),
+        "username": player.username,
+        "discord_id": player.discord_id,
+        "avatar_url": player.avatar_url,
+        "is_admin": player.is_admin,
+        "is_banned": player.is_banned,
+        "notes": player.notes,
+        "created_at": player.created_at.isoformat(),
+    }
+
+
+@router.put("/players/{player_id}/notes")
+async def admin_set_notes(player_id: uuid.UUID, body: NotesUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
+    pid = uuid.UUID(player_id)
+    player = await db.get(Player, pid)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    player.notes = body.notes
+    await db.commit()
+    return {"status": "ok", "notes": player.notes}
+
+
+@router.post("/players/import")
+async def admin_import_players(file: UploadFile = File(...), db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files accepted")
+    contents = await file.read()
+    text = contents.decode("utf-8-sig")
+    reader = csv.reader(io.StringIO(text))
+    created = 0
+    skipped = 0
+    errors = []
+    seen = set()
+    for row in reader:
+        if not row:
+            continue
+        username = row[0].strip()
+        if not username:
+            continue
+        if username.lower() in seen:
+            skipped += 1
+            continue
+        seen.add(username.lower())
+        existing = await db.execute(select(Player).where(Player.username == username))
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+        try:
+            db.add(Player(username=username))
+            created += 1
+        except Exception as e:
+            errors.append(f"{username}: {str(e)}")
+    await db.commit()
+    return {"created": created, "skipped": skipped, "errors": errors}
+
+
+@router.patch("/matches/{match_id}")
+async def admin_update_match(match_id: uuid.UUID, body: MatchUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
+    mid = uuid.UUID(match_id)
+    match = await db.get(Match, mid)
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    match.score_a = body.score_a
+    match.score_b = body.score_b
+    match.winner_team_id = match.team_a_id if body.winner == "a" else match.team_b_id
+    await db.commit()
+    return {"status": "ok", "match_id": str(match.id)}

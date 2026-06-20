@@ -63,7 +63,7 @@ def calculate_delta(
 
     # Floor so loser never drops below rating_floor
     max_loss = rating_loser - settings.rating_floor
-    delta_loser = min(delta_loser, max_loss)
+    delta_loser = max(delta_loser, -max_loss)
 
     # Ensure at least ±1 so no zero-ELO matches
     delta_winner = max(delta_winner, 1)

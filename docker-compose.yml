@@ -1,33 +1,40 @@
 services:
-  db:
-    image: postgres:16
-    container_name: rainbow-leaderboard-db
-    environment:
-      POSTGRES_USER: rainbow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbow}
-      POSTGRES_DB: rainbow
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rainbow"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   api:
-    image: rainbow-leaderboard-api:latest
+    build: .
     container_name: rainbow-leaderboard-api
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://rainbow:${POSTGRES_PASSWORD:-rainbow}@db:5432/rainbow
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+    - .env
+    environment:
+    - DATABASE_URL=postgresql+asyncpg://rainbow:${POSTGRES_PASSWORD:-rainbow}@db:5432/rainbow
+    image: rainbow-leaderboard-api:latest
+    labels:
+    - homepage.group=Apps
+    - homepage.name=Rainbow Leaderboard
+    - homepage.icon=mdi-trophy
+    - homepage.href=http://217.216.92.83:8082
+    - homepage.description=R6 leaderboard
+    ports:
+    - 8082:8000
     restart: unless-stopped
-
+  db:
+    container_name: rainbow-leaderboard-db
+    environment:
+      POSTGRES_DB: rainbow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbow}
+      POSTGRES_USER: rainbow
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test:
+      - CMD-SHELL
+      - pg_isready -U rainbow
+      timeout: 5s
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+    - pgdata:/var/lib/postgresql/data
 volumes:
-  pgdata:
+  pgdata: null

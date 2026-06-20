@@ -45,6 +45,11 @@ async def admin_page(request: Request):
         return RedirectResponse(url="/", status_code=302)
     return templates.TemplateResponse("admin.html", {"request": request})
 
+@router.get("/player/new", response_class=HTMLResponse)
+async def new_player_page(request: Request):
+    return templates.TemplateResponse("player_new.html", {"request": request})
+
+
 @router.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
     session_user = request.session.get("user")
@@ -59,13 +64,19 @@ async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(url="/", status_code=302)
     return RedirectResponse(url=f"/player/{player.id}", status_code=302)
 
+@router.get("/compare", response_class=HTMLResponse)
+async def compare_page(request: Request):
+    return templates.TemplateResponse("compare.html", {"request": request})
+
+
 @router.get("/tournaments", response_class=HTMLResponse)
 async def tournaments_list_page(request: Request):
     return templates.TemplateResponse("tournaments_list.html", {"request": request})
 
 @router.get("/tournament/{tournament_id}", response_class=HTMLResponse)
 async def tournament_page(request: Request, tournament_id: str):
-    return templates.TemplateResponse("tournament.html", {"request": request, "tournament_id": tournament_id})
+    from app.config import settings
+    return templates.TemplateResponse("tournament.html", {"request": request, "tournament_id": tournament_id, "admin_discord_ids": settings.admin_discord_ids})
 
 @router.get("/seasons", response_class=HTMLResponse)
 async def seasons_page(request: Request):

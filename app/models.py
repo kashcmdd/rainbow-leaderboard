@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -21,6 +21,7 @@ class Player(Base):
     avatar_url = Column(String(512), nullable=True)
     is_admin = Column(Boolean, default=False)
     is_banned = Column(Boolean, default=False)
+    notes = Column(Text, nullable=True, default=None)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     ratings = relationship("Rating", back_populates="player", cascade="all, delete-orphan")
@@ -69,6 +70,10 @@ class Match(Base):
     team_a = relationship("Team", foreign_keys=[team_a_id])
     team_b = relationship("Team", foreign_keys=[team_b_id])
 
+    __table_args__ = (
+        Index("ix_matches_played_at", "played_at"),
+    )
+
 
 class Rating(Base):
     __tablename__ = "ratings"
@@ -108,6 +113,10 @@ class RatingHistory(Base):
     match_id = Column(UUID(as_uuid=True), ForeignKey("matches.id"), nullable=False)
     changed_at = Column(DateTime(timezone=True), default=utcnow)
 
+    __table_args__ = (
+        Index("ix_rating_history_changed_at", "changed_at"),
+    )
+
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
@@ -120,6 +129,10 @@ class AuditLog(Base):
     target_name = Column(String(64), nullable=True)
     details = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        Index("ix_audit_log_created_at", "created_at"),
+    )
 
 
 class Tournament(Base):

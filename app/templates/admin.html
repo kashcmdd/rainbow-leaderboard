@@ -68,6 +68,32 @@
   </div>
 </div>
 
+<div id="matchEditModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+  <div class="card p-8 w-full max-w-sm mx-4">
+    <h3 class="text-lg font-bold text-white mb-1">Edit Match</h3>
+    <p class="text-xs text-gray-500 mb-5" id="matchEditInfo"></p>
+    <div class="mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Score A</label>
+      <input id="matchScoreA" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" min="0" placeholder="Score A">
+    </div>
+    <div class="mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Score B</label>
+      <input id="matchScoreB" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" min="0" placeholder="Score B">
+    </div>
+    <div class="mb-4">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Winner</label>
+      <select id="matchWinner" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);">
+        <option value="a">Team A</option>
+        <option value="b">Team B</option>
+      </select>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button id="matchEditCancel" class="btn text-xs">Cancel</button>
+      <button id="matchEditConfirm" class="btn btn-pink text-xs">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="profileBackdrop" class="profile-backdrop"></div>
 <div id="profilePanel" class="profile-sidepanel"></div>
 
@@ -205,6 +231,10 @@ function renderManagement() {
 function renderAddPlayer() {
   $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="addPlayerSection"><h2 class="text-sm font-bold text-white mb-1">Add Player</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Create a new player account</p>
     <div class="flex gap-2"><input id="addPlayerInput" class="flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Username..."><button id="addPlayerBtn" class="btn btn-pink text-xs">Add</button></div>
+  </div>`);
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="bulkImportSection"><h2 class="text-sm font-bold text-white mb-1">Bulk Import</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Upload a .csv file with usernames (one per line)</p>
+    <div class="flex gap-2 items-center"><input id="importFileInput" type="file" accept=".csv" class="w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700"><button id="importBtn" class="btn btn-pink text-xs">Import</button></div>
+    <div id="importResults" class="mt-3 text-xs hidden"></div>
   </div>`);
 }
 
@@ -349,16 +379,40 @@ function renderMatches(matches) {
       <td class="py-2.5 px-3 text-sm text-white">${m.team_b_name}</td>
       <td class="py-2.5 px-3 text-[10px] font-semibold" style="color:${m.winner_name==='Draw'?'#666':'#00e676'}">${m.winner_name||'—'}</td>
       <td class="py-2.5 px-3 text-xs text-gray-600 hidden md:table-cell">${new Date(m.played_at).toLocaleDateString()}</td>
-      <td class="py-2.5 px-3 text-right"><button class="match-delete text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${m.id}">Remove</button></td>
+      <td class="py-2.5 px-3 text-right"><div class="flex gap-1 justify-end"><button class="match-edit text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${m.id}" data-score-a="${m.score_a}" data-score-b="${m.score_b}" data-winner="${m.winner_name===m.team_a_name?'a':'b'}" data-teama="${window.esc(m.team_a_name)}" data-teamb="${window.esc(m.team_b_name)}">Edit</button><button class="match-delete text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${m.id}">Remove</button></div></td>
     </tr>`;
   }
   html += '</tbody></table></div></div>';
   $('adminContent').insertAdjacentHTML('beforeend', html);
   document.querySelectorAll('.match-delete').forEach(btn => btn.addEventListener('click', async () => {
     await showModal('Delete Match','Remove this match permanently?',true);
-    const r = await fetch('/api/admin/matches/'+btn.dataset.id,{method:'DELETE'});
+    const r = await window.apiFetch('/api/admin/matches/'+btn.dataset.id,{method:'DELETE'});
     if (r.ok) { toast('Match deleted.','success'); location.reload(); } else toast('Failed.','error');
   }));
+  wireMatchEdit();
+}
+
+function wireMatchEdit() {
+  document.querySelectorAll('.match-edit').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.id;
+    $('matchScoreA').value = btn.dataset.scoreA;
+    $('matchScoreB').value = btn.dataset.scoreB;
+    $('matchWinner').value = btn.dataset.winner;
+    $('matchEditInfo').textContent = `${btn.dataset.teama} vs ${btn.dataset.teamb}`;
+    $('matchEditModal').classList.remove('hidden');
+    $('matchEditModal').classList.add('flex');
+    $('matchEditConfirm').onclick = async () => {
+      const scoreA = parseInt($('matchScoreA').value);
+      const scoreB = parseInt($('matchScoreB').value);
+      const winner = $('matchWinner').value;
+      if (isNaN(scoreA) || isNaN(scoreB)) { toast('Enter valid scores.','error'); return; }
+      const r = await window.apiFetch('/api/admin/matches/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({score_a:scoreA, score_b:scoreB, winner})});
+      if (r.ok) { toast('Match updated.','success'); $('matchEditModal').classList.add('hidden'); $('matchEditModal').classList.remove('flex'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+    };
+  }));
+  const cancel = $('matchEditCancel');
+  if (cancel) cancel.addEventListener('click', () => { $('matchEditModal').classList.add('hidden'); $('matchEditModal').classList.remove('flex'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('matchEditModal').classList.add('hidden'); $('matchEditModal').classList.remove('flex'); }});
 }
 
 function renderAuditLog(log) {
@@ -378,8 +432,8 @@ function renderAuditLog(log) {
         <td class="py-1.5 px-3 text-[10px] text-gray-600 whitespace-nowrap">${timeStr}</td>
         <td class="py-1.5 px-3 text-xs text-white">${e.admin_name}</td>
         <td class="py-1.5 px-3 text-xs" style="color:${e.action.includes('banned')||e.action.includes('delete')?'#ef4444':e.action.includes('granted')?'#00e676':'#ccc'}">${e.action}</td>
-        <td class="py-1.5 px-3 text-xs text-gray-400 hidden sm:table-cell">${e.target_name||'—'}</td>
-        <td class="py-1.5 px-3 text-[10px] text-gray-600 hidden md:table-cell max-w-[200px] truncate">${e.details||'—'}</td>
+        <td class="py-1.5 px-3 text-xs text-gray-400 hidden sm:table-cell">${window.esc(e.target_name)||'—'}</td>
+        <td class="py-1.5 px-3 text-[10px] text-gray-600 hidden md:table-cell max-w-[200px] truncate">${window.esc(e.details)||'—'}</td>
       </tr>`;
     }
     html += '</tbody></table></div>';
@@ -389,7 +443,7 @@ function renderAuditLog(log) {
   const clearBtn = $('clearAuditBtn');
   if (clearBtn) clearBtn.addEventListener('click', async () => {
     await showModal('Clear Audit Log','Delete all audit log entries permanently?',true);
-    const r = await fetch('/api/admin/clear-audit-log',{method:'POST'});
+    const r = await window.apiFetch('/api/admin/clear-audit-log',{method:'POST'});
     if (r.ok) { toast('Audit log cleared.','success'); location.reload(); } else toast('Failed.','error');
   });
 }
@@ -397,12 +451,12 @@ function renderAuditLog(log) {
 function wireGlobal() {
   document.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', async () => {
     const a = btn.dataset.action;
-    if (a === 'clear-leaderboard') { await showModal('Clear Leaderboard','Delete all ratings permanently.',true); const r = await fetch('/api/admin/clear-leaderboard',{method:'POST'}); r.ok ? (toast('Leaderboard cleared.','success'),location.reload()) : toast('Failed.','error'); }
-    else if (a === 'reset-leaderboard') { await showModal('Reset Rankings','Set all ELO/wins/losses to zero.',true); const r = await fetch('/api/admin/reset-leaderboard',{method:'POST'}); r.ok ? (toast('Rankings reset.','success'),location.reload()) : toast('Failed.','error'); }
+    if (a === 'clear-leaderboard') { await showModal('Clear Leaderboard','Delete all ratings permanently.',true); const r = await window.apiFetch('/api/admin/clear-leaderboard',{method:'POST'}); r.ok ? (toast('Leaderboard cleared.','success'),location.reload()) : toast('Failed.','error'); }
+    else if (a === 'reset-leaderboard') { await showModal('Reset Rankings','Set all ELO/wins/losses to zero.',true); const r = await window.apiFetch('/api/admin/reset-leaderboard',{method:'POST'}); r.ok ? (toast('Rankings reset.','success'),location.reload()) : toast('Failed.','error'); }
   }));
   const addInput = $('addPlayerInput'), addBtn = $('addPlayerBtn');
   if (addInput && addBtn) {
-    async function add() { const name = addInput.value.trim(); if (!name) return; try { const r = await fetch('/api/players',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:name})}); if (r.ok) { toast('Player created.','success'); addInput.value = ''; location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); } } catch { toast('Error.','error'); } }
+    async function add() { const name = addInput.value.trim(); if (!name) return; try { const r = await window.apiFetch('/api/players',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:name})}); if (r.ok) { toast('Player created.','success'); addInput.value = ''; location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); } } catch { toast('Error.','error'); } }
     addBtn.addEventListener('click', add);
     addInput.addEventListener('keydown', e => { if (e.key==='Enter') add(); });
   }
@@ -413,7 +467,7 @@ function wireGlobal() {
     const name = $('tmtName').value.trim();
     const format = $('tmtFormat').value;
     if (!name) { toast('Enter a name.','error'); return; }
-    const r = await fetch('/api/tournaments', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,format}) });
+    const r = await window.apiFetch('/api/tournaments', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,format})});
     if (r.ok) { const d = await r.json(); toast(`Tournament created: ${d.name}`,'success'); loadTmtList(); $('tmtName').value=''; } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
   });
 
@@ -425,7 +479,7 @@ function wireGlobal() {
       const canAdd = t.status === 'pending';
       const canComplete = t.status === 'active';
       return `<div class="flex items-center justify-between text-xs card px-3 py-2" style="border-color:rgba(255,255,255,0.04);">
-        <span class="text-white" style="min-width:120px;">${t.name}</span>
+          <span class="text-white" style="min-width:120px;">${window.esc(t.name)}</span>
         <div class="flex items-center gap-1.5 flex-wrap">
           <span class="text-gray-600">${t.status}</span>
           ${canAdd ? `<button class="btn text-xs px-3 py-2 add-players-btn" data-id="${t.id}" style="color:#ffb700;border-color:rgba(255,183,0,0.3);">+Players</button>` : ''}
@@ -445,15 +499,15 @@ function wireGlobal() {
     if (!btn) return;
     const id = btn.dataset.id;
     if (btn.classList.contains('start-tmt-btn')) {
-      const r = await fetch(`/api/tournaments/${id}/start`, {method:'POST'});
+      const r = await window.apiFetch(`/api/tournaments/${id}/start`, {method:'POST'});
       if (r.ok) { toast('Tournament started!','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
     } else if (btn.classList.contains('complete-tmt-btn')) {
       await showModal('Complete Tournament','Mark tournament as completed?', true);
-      const r = await fetch(`/api/tournaments/${id}/complete`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+      const r = await window.apiFetch(`/api/tournaments/${id}/complete`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
       if (r.ok) { toast('Tournament completed!','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
     } else if (btn.classList.contains('delete-tmt-btn')) {
       await showModal('Delete Tournament','Delete this tournament permanently?', true);
-      const r = await fetch(`/api/tournaments/${id}`, {method:'DELETE'});
+      const r = await window.apiFetch(`/api/tournaments/${id}`, {method:'DELETE'});
       if (r.ok) { toast('Deleted.','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
     } else if (btn.classList.contains('add-players-btn')) {
       const playerNames = allPlayers.map(p => p.username).join('\n');
@@ -462,7 +516,7 @@ function wireGlobal() {
       const names = input.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       const ids = names.map(n => { const p = allPlayers.find(p => p.username.toLowerCase() === n.toLowerCase()); return p ? p.id : null; }).filter(Boolean);
       if (ids.length === 0) { toast('No matching players found.','error'); return; }
-      const r = await fetch(`/api/tournaments/${id}/add-players`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_ids: ids})});
+      const r = await window.apiFetch(`/api/tournaments/${id}/add-players`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_ids: ids})});
       if (r.ok) { toast(`${ids.length} players added.`,'success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
     }
   });
@@ -472,9 +526,31 @@ function wireGlobal() {
   if (closeSeasonBtn) closeSeasonBtn.addEventListener('click', async () => {
     const name = $('seasonName').value.trim() || 'Season';
     await showModal('Close Season',`Archive "${name}" and reset all ELOs?`, true);
-    const r = await fetch('/api/admin/close-season', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    const r = await window.apiFetch('/api/admin/close-season', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
     if (r.ok) { toast('Season closed.','success'); location.reload(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
   });
+
+  // Bulk import
+  const importBtn = $('importBtn');
+  const importFile = $('importFileInput');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', async () => {
+      const file = importFile.files[0];
+      if (!file) { toast('Select a .csv file.','error'); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await window.apiFetch('/api/admin/players/import', {method:'POST', body:fd});
+      if (r.ok) {
+        const d = await r.json();
+        const results = $('importResults');
+        results.classList.remove('hidden');
+        results.innerHTML = `<span style="color:#00e676;">Created: ${d.created}</span> · <span style="color:#ffb700;">Skipped: ${d.skipped}</span>${d.errors.length ? ' · <span style="color:#ef4444;">Errors: '+d.errors.join(', ')+'</span>' : ''}`;
+        toast(`Import complete: ${d.created} created, ${d.skipped} skipped.`,'success');
+        importFile.value = '';
+        location.reload();
+      } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+    });
+  }
 }
 
 function wirePlayerTable() {
@@ -490,20 +566,20 @@ function wirePlayerTable() {
       if (inp.dataset.field==='wins'&&!isNaN(v)) body.wins=v;
       if (inp.dataset.field==='losses'&&!isNaN(v)) body.losses=v;
     }
-    (await fetch('/api/players/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).ok ? (toast('Saved.','success'),location.reload()) : toast('Failed.','error');
+    (await window.apiFetch('/api/players/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).ok ? (toast('Saved.','success'),location.reload()) : toast('Failed.','error');
   }));
   document.querySelectorAll('.delete-btn').forEach(btn => {
     let confirm = false;
     btn.addEventListener('click', async () => {
       if (!confirm) { confirm = true; btn.textContent = 'Confirm?'; btn.style.background = '#dc2626'; setTimeout(() => { if (confirm) { confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; } }, 4000); return; }
       const id = btn.dataset.id;
-      const r = await fetch('/api/players/'+id,{method:'DELETE'});
+      const r = await window.apiFetch('/api/players/'+id,{method:'DELETE'});
       if (r.ok) { toast('Deleted.','success'); location.reload(); } else { toast('Failed.','error'); confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; }
     });
   });
   document.querySelectorAll('.admin-toggle').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
-    const r = await fetch(`/api/admin/players/${id}/toggle-admin`, {method:'POST'});
+    const r = await window.apiFetch(`/api/admin/players/${id}/toggle-admin`, {method:'POST'});
     if (r.ok) { const d = await r.json(); toast(`${d.username} is now ${d.is_admin?'Admin':'User'}`, 'success'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
   }));
 }
@@ -559,7 +635,7 @@ function wireBulkBar() {
     else if (action === 'clear-avatar') { await showModal('Clear Avatar',`Remove avatar for ${ids.length} player(s)?`,false); endpoint = '/api/admin/bulk/clear-avatar'; }
     if (!endpoint) return;
     try {
-      const r = await fetch(endpoint,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_ids:ids})});
+      const r = await window.apiFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_ids:ids})});
       if (r.ok) { toast('Done.','success'); location.reload(); } else { try { const errData = await r.json(); toast(errData.detail||'Failed ('+r.status+')','error'); } catch(_) { toast('Failed ('+r.status+')','error'); } }
     } catch(netErr) { toast('Network error: '+netErr.message,'error'); console.error(netErr); }
   }));
@@ -583,7 +659,7 @@ function wireEloModal() {
     const reason = $('eloReason').value.trim();
     if (isNaN(amount)) { toast('Enter a valid number.','error'); return; }
     if (!reason) { toast('Reason is required.','error'); return; }
-    const r = await fetch(`/api/admin/players/${targetId}/adjust-elo`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount, reason})});
+    const r = await window.apiFetch(`/api/admin/players/${targetId}/adjust-elo`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount, reason})});
     if (r.ok) { toast('ELO adjusted.','success'); $('eloModal').classList.add('hidden'); $('eloModal').classList.remove('flex'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('eloModal').classList.add('hidden'); $('eloModal').classList.remove('flex'); }});
@@ -602,7 +678,7 @@ function wireAvatarUpload() {
   document.querySelectorAll('.avatar-remove').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
     await showModal('Remove Avatar','Remove this player\'s avatar?',false);
-    const r = await fetch(`/api/admin/players/${id}/avatar`, {method:'DELETE'});
+    const r = await window.apiFetch(`/api/admin/players/${id}/avatar`, {method:'DELETE'});
     if (r.ok) { toast('Avatar removed.','success'); location.reload(); } else toast('Failed.','error');
   }));
   const cancel = $('avatarCancel'), confirm = $('avatarConfirm');
@@ -611,7 +687,7 @@ function wireAvatarUpload() {
     const file = $('avatarFileInput').files[0];
     if (!file) { toast('Select a file.','error'); return; }
     const fd = new FormData(); fd.append('file', file);
-    const r = await fetch(`/api/admin/players/${targetId}/avatar`, {method:'POST', body:fd});
+    const r = await window.apiFetch(`/api/admin/players/${targetId}/avatar`, {method:'POST', body:fd});
     if (r.ok) { toast('Avatar uploaded.','success'); $('avatarModal').classList.add('hidden'); $('avatarModal').classList.remove('flex'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('avatarModal').classList.add('hidden'); $('avatarModal').classList.remove('flex'); }});
@@ -621,7 +697,7 @@ function wireBanToggles() {
   document.querySelectorAll('.ban-btn').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
     await showModal('Toggle Ban','Change this player\'s ban status?',true);
-    const r = await fetch(`/api/admin/players/${id}/toggle-ban`, {method:'POST'});
+    const r = await window.apiFetch(`/api/admin/players/${id}/toggle-ban`, {method:'POST'});
     if (r.ok) { const d = await r.json(); toast(`${d.username} ${d.is_banned?'banned':'unbanned'}`, 'success'); location.reload(); } else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
   }));
 }
@@ -639,8 +715,9 @@ async function openProfilePanel(playerId) {
   panel.classList.add('open'); backdrop.classList.add('open');
 
   try {
-    const [pd, matchesRes] = await Promise.all([
+    const [pd, adminPd, matchesRes] = await Promise.all([
       fetch('/api/players/'+playerId).then(r => r.json()),
+      fetch('/api/admin/players/'+playerId).then(r => r.json()),
       fetch('/api/matches?limit=50').then(r => r.json()),
     ]);
 
@@ -655,8 +732,8 @@ async function openProfilePanel(playerId) {
 
     let html = `<div class="p-6" style="border-bottom:1px solid rgba(255,255,255,0.06);">
       <div class="flex items-center gap-4 mb-4">
-        ${pd.avatar_url ? `<img src="${pd.avatar_url}" class="w-16 h-16 rounded-full object-cover" style="border:2px solid ${rank[2]}">` : `<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold" style="background:#1c1c1f;color:#333;border:2px solid ${rank[2]};">${pd.username[0].toUpperCase()}</div>`}
-        <div><h2 class="text-lg font-bold text-white">${pd.username}</h2><span class="text-xs font-semibold" style="color:${rank[2]}">${rank[0]}</span></div>
+        ${pd.avatar_url ? `<img src="${window.esc(pd.avatar_url)}" class="w-16 h-16 rounded-full object-cover" style="border:2px solid ${rank[2]}">` : `<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold" style="background:#1c1c1f;color:#333;border:2px solid ${rank[2]};">${window.esc(pd.username[0]).toUpperCase()}</div>`}
+        <div><h2 class="text-lg font-bold text-white">${window.esc(pd.username)}</h2><span class="text-xs font-semibold" style="color:${rank[2]}">${window.esc(rank[0])}</span></div>
       </div>
       <div class="grid grid-cols-3 gap-2 mb-4">
         <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:${rank[2]}">${rating.elo}</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">ELO</div></div>
@@ -684,8 +761,19 @@ async function openProfilePanel(playerId) {
       html += `<div class="p-4 text-center text-xs text-gray-600">No matches yet.</div>`;
     }
 
+    const notes = adminPd.notes || '';
+    html += `<div class="p-4" style="border-top:1px solid rgba(255,255,255,0.06);"><h3 class="text-xs font-bold text-white mb-3 uppercase tracking-widest">Admin Notes</h3>
+      <textarea id="notesTextarea" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white resize-y" style="border-color:rgba(255,255,255,0.1);min-height:80px;" placeholder="Private notes...">${window.esc(notes)}</textarea>
+      <button id="saveNotesBtn" class="btn btn-pink text-xs mt-2">Save Notes</button>
+    </div>`;
+
     panel.innerHTML = `<div class="p-4 text-right"><button id="closePanel" class="btn text-xs">✕ Close</button></div>${html}`;
     $('closePanel')?.addEventListener('click', closeProfilePanel);
+    $('saveNotesBtn')?.addEventListener('click', async () => {
+      const val = $('notesTextarea').value;
+      const r = await window.apiFetch('/api/admin/players/'+playerId+'/notes', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notes: val})});
+      if (r.ok) { toast('Notes saved.','success'); } else { toast('Failed to save notes.','error'); }
+    });
   } catch {
     panel.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">Failed to load.</div>';
   }

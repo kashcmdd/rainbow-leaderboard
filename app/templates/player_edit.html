@@ -33,7 +33,7 @@ document.getElementById('editForm').addEventListener('submit', async (e) => {
     const elo = parseInt(fd.get('elo')); if (!isNaN(elo)) body.elo = elo;
     const wins = parseInt(fd.get('wins')); if (!isNaN(wins)) body.wins = wins;
     const losses = parseInt(fd.get('losses')); if (!isNaN(losses)) body.losses = losses;
-    const res = await fetch('/api/players/{{ player_id }}', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const res = await window.apiFetch('/api/players/{{ player_id }}', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     const result = document.getElementById('result');
     result.classList.remove('hidden');
     if (res.ok) { result.style.background='rgba(0,230,118,0.1)'; result.style.border='1px solid rgba(0,230,118,0.2)'; result.style.color='#00e676'; result.innerHTML = 'Saved! <a href="/player/{{ player_id }}" class="underline font-medium">View profile</a>'; }

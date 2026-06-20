@@ -68,22 +68,39 @@
         </div>
     </nav>
     <script>
-    // CSRF token setup — fetch on page load for all mutating requests
     let csrfToken = null;
-    fetch('/api/csrf/token').then(r => r.json()).then(d => {
-        csrfToken = d.csrf_token;
-    }).catch(() => {});
+    (function retryFetchToken() {
+        fetch('/api/csrf/token').then(r => r.json()).then(d => {
+            csrfToken = d.csrf_token;
+        }).catch(() => { setTimeout(retryFetchToken, 2000); });
+    })();
 
-    // Intercept fetch to add CSRF header on mutating requests
-    const origFetch = window.fetch;
-    window.fetch = function(url, opts = {}) {
-        if (!opts.method || ['POST', 'PUT', 'PATCH', 'DELETE'].includes(opts.method.toUpperCase())) {
-            if (csrfToken && !opts.headers?.['X-CSRF-Bypass']) {
+    window.getCsrfToken = function() {
+        return csrfToken;
+    };
+    window.esc = function(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    };
+    window.apiFetch = function(url, opts = {}) {
+        const token = csrfToken;
+        if (token) {
+            if (opts.body instanceof FormData) {
+                opts.body.append('csrf_token', token);
+            } else {
                 opts.headers = opts.headers || {};
-                opts.headers['X-CSRF-Token'] = csrfToken;
+                opts.headers['X-CSRF-Token'] = token;
             }
         }
-        return origFetch.call(this, url, opts);
+        return fetch(url, opts).catch(function() {
+            return {
+                ok: false,
+                status: 0,
+                json: function() { return Promise.resolve({detail: 'Network error. Check your connection.'}); },
+                text: function() { return Promise.resolve('Network error. Check your connection.'); },
+            };
+        });
     };
     </script>
     <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-12 animate-fade-in">

@@ -13,6 +13,7 @@ from app.models import (
     Player, Team, TeamMember, Match, Rating, Tournament, TournamentParticipant, AuditLog
 )
 from app.ranks import get_rank
+from app.csrf import csrf_protect
 
 router = APIRouter(prefix="/api/tournaments", tags=["tournaments"])
 
@@ -55,7 +56,7 @@ async def list_tournaments(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{tournament_id}")
-async def get_tournament(tournament_id: str, db: AsyncSession = Depends(get_db)):
+async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:
@@ -126,7 +127,7 @@ async def get_tournament(tournament_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.post("")
-async def create_tournament(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def create_tournament(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     name = body.get("name", "").strip()
     fmt = body.get("format", "1v1")
     if not name:
@@ -141,7 +142,7 @@ async def create_tournament(body: dict, db: AsyncSession = Depends(get_db), admi
 
 
 @router.post("/{tournament_id}/add-players")
-async def add_tournament_players(tournament_id: str, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def add_tournament_players(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:
@@ -170,7 +171,7 @@ async def add_tournament_players(tournament_id: str, body: dict, db: AsyncSessio
 
 
 @router.post("/{tournament_id}/start")
-async def start_tournament(tournament_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:
@@ -226,14 +227,21 @@ async def start_tournament(tournament_id: str, db: AsyncSession = Depends(get_db
         db.add(team)
         return team
 
-    # Round 1 matches
+    # Round 1 matches — handle byes (auto-advance if opponent is None)
     round_matches = {}  # (round, position) -> match
+    bye_advances = {}   # player -> (next_round, next_position, side)
     for pos, (s1, s2) in enumerate(round1_matches):
         if s1 is None and s2 is None:
             continue
         p1 = seed_map.get(s1) if s1 else None
         p2 = seed_map.get(s2) if s2 else None
         if not p1 or not p2:
+            # Bye — auto-advance the player who has an opponent
+            advancing_player = p1 or p2
+            target_round = 1
+            target_pos = pos
+            side = "a" if p1 else "b"
+            bye_advances[(target_round, target_pos)] = (advancing_player, side)
             continue
 
         team_a = make_team()
@@ -280,13 +288,23 @@ async def start_tournament(tournament_id: str, db: AsyncSession = Depends(get_db
             round_matches[(rnd, pos)] = placeholder
 
     t.status = "active"
+
+    # Auto-advance bye winners to the next round
+    from app.ranks import recalculate_top_positions
+    for (rnd, pos), (player, side) in bye_advances.items():
+        next_pos = pos // 2
+        next_match = round_matches.get((rnd + 1, next_pos))
+        if next_match:
+            target_team_id = next_match.team_a_id if side == "a" else next_match.team_b_id
+            db.add(TeamMember(team_id=target_team_id, player_id=player.player_id))
+
     await _log_audit(db, admin_user, "start_tournament", target_name=t.name)
     await db.commit()
     return {"status": "started", "num_players": n, "num_rounds": num_rounds}
 
 
 @router.post("/{tournament_id}/report-match")
-async def report_tournament_match(tournament_id: str, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:
@@ -353,7 +371,7 @@ async def report_tournament_match(tournament_id: str, body: dict, db: AsyncSessi
 
 
 @router.post("/{tournament_id}/complete")
-async def complete_tournament(tournament_id: str, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:
@@ -396,7 +414,7 @@ async def complete_tournament(tournament_id: str, body: dict, db: AsyncSession =
 
 
 @router.delete("/{tournament_id}")
-async def delete_tournament(tournament_id: str, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin)):
+async def delete_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
     tid = uuid.UUID(tournament_id)
     t = await db.get(Tournament, tid)
     if not t:

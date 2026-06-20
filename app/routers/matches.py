@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import Optional
+import uuid
 
 from app.database import get_db
 from app.models import Player, Team, TeamMember, Match, Rating, RatingHistory, TournamentParticipant
@@ -10,6 +11,7 @@ from app.schemas import MatchReport, MatchOut
 from app.config import settings
 from app.elo import calculate_delta, calculate_delta_team
 from app.ranks import recalculate_top_positions
+from app.csrf import csrf_protect
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
@@ -47,7 +49,7 @@ async def _get_or_create_team(db: AsyncSession, format: str, player_ids: list[st
     return team
 
 
-async def _get_or_create_rating(db: AsyncSession, player_id: str, format: str) -> Rating:
+async def _get_or_create_rating(db: AsyncSession, player_id: uuid.UUID, format: str) -> Rating:
     result = await db.execute(
         select(Rating).where(Rating.player_id == player_id, Rating.format == format)
     )
@@ -65,7 +67,7 @@ async def _update_player_ratings(
     delta: int,
     is_winner: bool,
     format: str,
-    match_id: str,
+    match_id: uuid.UUID,
 ):
     for pid in player_ids:
         rating = await _get_or_create_rating(db, pid, format)
@@ -94,7 +96,7 @@ async def _update_player_ratings(
 
 
 @router.post("")
-async def report_match(body: MatchReport, request: Request, db: AsyncSession = Depends(get_db)):
+async def report_match(body: MatchReport, request: Request, db: AsyncSession = Depends(get_db), _: None = Depends(csrf_protect)):
     session_user = request.session.get("user")
     if not session_user:
         raise HTTPException(status_code=401, detail="Not logged in")
@@ -155,8 +157,8 @@ async def report_match(body: MatchReport, request: Request, db: AsyncSession = D
     winner_avg = sum(r.elo for r in winner_ratings) // len(winner_ratings)
     loser_avg = sum(r.elo for r in loser_ratings) // len(loser_ratings)
 
-    winner_total_matches = sum(r.matches_played for r in winner_ratings)
-    loser_total_matches = sum(r.matches_played for r in loser_ratings)
+    winner_total_matches = max(r.matches_played for r in winner_ratings)
+    loser_total_matches = max(r.matches_played for r in loser_ratings)
 
     if body.format == "1v1":
         delta_winner, delta_loser = calculate_delta(
@@ -233,6 +235,9 @@ async def list_matches(
     format: Optional[str] = None,
     player_id: Optional[str] = None,
     limit: int = 50,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    opponent_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Match).options(
@@ -242,6 +247,25 @@ async def list_matches(
 
     if format:
         q = q.where(Match.format == format)
+
+    if date_from:
+        q = q.where(Match.played_at >= f"{date_from}T00:00:00")
+    if date_to:
+        q = q.where(Match.played_at <= f"{date_to}T23:59:59")
+
+    if opponent_id:
+        opponent_team_ids = select(TeamMember.team_id).where(TeamMember.player_id == opponent_id)
+        if player_id:
+            player_team_ids = select(TeamMember.team_id).where(TeamMember.player_id == player_id)
+            q = q.where(
+                ((Match.team_a_id.in_(player_team_ids)) & (Match.team_b_id.in_(opponent_team_ids))) |
+                ((Match.team_a_id.in_(opponent_team_ids)) & (Match.team_b_id.in_(player_team_ids)))
+            )
+        else:
+            q = q.where(
+                Match.team_a_id.in_(opponent_team_ids) |
+                Match.team_b_id.in_(opponent_team_ids)
+            )
 
     if player_id:
         q = q.where(

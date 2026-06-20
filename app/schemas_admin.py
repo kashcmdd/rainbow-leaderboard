@@ -8,3 +8,13 @@ class PlayerUpdate(BaseModel):
     wins: Optional[int] = Field(None, ge=0)
     losses: Optional[int] = Field(None, ge=0)
     discord_id: Optional[str] = None
+
+
+class NotesUpdate(BaseModel):
+    notes: Optional[str] = None
+
+
+class MatchUpdate(BaseModel):
+    score_a: int = Field(..., ge=0)
+    score_b: int = Field(..., ge=0)
+    winner: str = Field(..., pattern=r"^(a|b)$")

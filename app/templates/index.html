@@ -49,7 +49,7 @@ async function loadStats() {
     document.getElementById('totalPlayers').textContent = stats.total_players;
     document.getElementById('totalMatches').textContent = stats.total_matches;
     if (stats.top_player) {
-        document.getElementById('topPlayer').innerHTML = `<a href="/player/${stats.top_player.id}" class="hover:text-[#e8197d] transition-colors">${stats.top_player.username}</a>`;
+        document.getElementById('topPlayer').innerHTML = `<a href="/player/${stats.top_player.id}" class="hover:text-[#e8197d] transition-colors">${window.esc(stats.top_player.username)}</a>`;
     }
     const activity = await activityRes.json();
     const feed = document.getElementById('activityFeed');
@@ -61,10 +61,10 @@ async function loadStats() {
             return `<div class="flex items-start gap-3 py-2" style="border-bottom:1px solid rgba(255,255,255,0.04);">
                 <div class="mt-0.5 text-xs">${icon}</div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-xs text-white truncate">${a.message}</div>
-                    ${a.detail ? `<div class="text-[11px] sm:text-[10px] text-gray-600">${a.detail}</div>` : ''}
+                    <div class="text-xs text-white truncate">${window.esc(a.message)}</div>
+                    ${a.detail ? `<div class="text-[11px] sm:text-[10px] text-gray-600">${window.esc(a.detail)}</div>` : ''}
                 </div>
-                <div class="text-[11px] sm:text-[10px] text-gray-600 whitespace-nowrap">${a.time_ago}</div>
+                <div class="text-[11px] sm:text-[10px] text-gray-600 whitespace-nowrap">${window.esc(a.time_ago)}</div>
             </div>`;
         }).join('');
     }

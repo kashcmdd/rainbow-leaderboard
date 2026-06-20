@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -167,3 +170,50 @@ async def get_team_leaderboard(
             win_rate=win_rate,
         ))
     return entries
+
+
+@router.get("/{format}/export")
+async def export_leaderboard(
+    format: str,
+    type: str = Query("csv"),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Rating).options(selectinload(Rating.player)).where(
+        Rating.format == format, Rating.player_id.isnot(None)
+    ).order_by(desc(Rating.elo))
+
+    result = await db.execute(q)
+    ratings = result.scalars().all()
+
+    export_data = []
+    for i, r in enumerate(ratings, 1):
+        total = r.wins + r.losses
+        win_rate = round(r.wins / total, 3) if total > 0 else 0.0
+        rank_title, _ = get_rank(r.elo, i if i <= 10 else None)
+        export_data.append({
+            "rank": i,
+            "name": r.player.username if r.player else "Unknown",
+            "elo": r.elo,
+            "rank_title": rank_title,
+            "wins": r.wins,
+            "losses": r.losses,
+            "win_rate": win_rate,
+            "streak": r.streak or 0,
+        })
+
+    if type == "json":
+        return Response(
+            content=json.dumps(export_data),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="leaderboard_{format}.json"'},
+        )
+
+    csv_lines = ["rank,name,elo,rank_title,wins,losses,win_rate,streak"]
+    for row in export_data:
+        csv_lines.append(f'{row["rank"]},{row["name"]},{row["elo"]},{row["rank_title"]},{row["wins"]},{row["losses"]},{row["win_rate"]},{row["streak"]}')
+
+    return Response(
+        content="\n".join(csv_lines),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="leaderboard_{format}.csv"'},
+    )

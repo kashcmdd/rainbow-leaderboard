@@ -31,11 +31,11 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Score — A</label>
-                    <input type="number" name="score_a" min="0" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
+                    <input type="number" name="score_a" min="0" required class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
                 </div>
                 <div>
                     <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Score — B</label>
-                    <input type="number" name="score_b" min="0" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
+                    <input type="number" name="score_b" min="0" required class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
                 </div>
             </div>
             <button type="submit" class="btn btn-pink w-full py-3 text-sm">Submit Match</button>
@@ -76,12 +76,58 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
     const format = document.getElementById('formatSelect').value;
     const score_a = parseInt(document.querySelector('[name="score_a"]').value);
     const score_b = parseInt(document.querySelector('[name="score_b"]').value);
-    if (!teamA.selected.length || !teamB.selected.length) {
-        const r = document.getElementById('result'); r.classList.remove('hidden'); r.style.background='rgba(239,68,68,0.1)'; r.style.border='1px solid rgba(239,68,68,0.2)'; r.style.color='#ef4444'; r.textContent='Each team needs at least one player.'; return;
+    const resultDiv = document.getElementById('result');
+    
+    // Validation
+    if (isNaN(score_a) || isNaN(score_b) || score_a < 0 || score_b < 0) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
+        resultDiv.style.color = '#ef4444';
+        resultDiv.textContent = 'Please enter valid scores for both teams.';
+        resultDiv.classList.remove('hidden');
+        return;
     }
-    const res = await fetch('/api/matches', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ format, team_a_player_names:[...teamA.selected], team_b_player_names:[...teamB.selected], score_a, score_b }) });
-    if (res.ok) { const d = await res.json(); window.location.href = d.winner_player_id ? '/player/'+d.winner_player_id : '/leaderboard?format='+format; }
-    else { const err = await res.json(); const r = document.getElementById('result'); r.classList.remove('hidden'); r.style.background='rgba(239,68,68,0.1)'; r.style.border='1px solid rgba(239,68,68,0.2)'; r.style.color='#ef4444'; r.textContent = typeof err.detail === 'string' ? err.detail : JSON.stringify(err); }
+    if (score_a === score_b) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
+        resultDiv.style.color = '#ef4444';
+        resultDiv.textContent = 'Scores cannot be tied. There must be a winner.';
+        resultDiv.classList.remove('hidden');
+        return;
+    }
+    if (!teamA.selected.length || !teamB.selected.length) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
+        resultDiv.style.color = '#ef4444';
+        resultDiv.textContent = 'Each team needs at least one player.';
+        resultDiv.classList.remove('hidden');
+        return;
+    }
+    
+    resultDiv.classList.add('hidden');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    
+    try {
+        const res = await window.apiFetch('/api/matches', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ format, team_a_player_names:[...teamA.selected], team_b_player_names:[...teamB.selected], score_a, score_b }) });
+        if (res.ok) { const d = await res.json(); window.location.href = d.winner_player_id ? '/player/'+d.winner_player_id : '/leaderboard?format='+format; }
+        else { const err = await res.json(); resultDiv.className = 'mt-4 p-4 rounded-lg text-sm'; resultDiv.style.background = 'rgba(239,68,68,0.1)'; resultDiv.style.border = '1px solid rgba(239,68,68,0.2)'; resultDiv.style.color = '#ef4444'; resultDiv.textContent = typeof err.detail === 'string' ? err.detail : JSON.stringify(err); resultDiv.classList.remove('hidden'); }
+    } catch (e) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
+        resultDiv.style.color = '#ef4444';
+        resultDiv.textContent = 'Network error. Please try again.';
+        resultDiv.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
 });
 
 loadPlayers();
