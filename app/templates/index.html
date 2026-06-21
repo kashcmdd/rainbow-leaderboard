@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="flex flex-col items-center text-center py-16 sm:py-20 animate-slide-up opacity-0 stagger-1">
-    <h1 class="text-5xl sm:text-6xl md:text-7xl font-extrabold mb-4">clukzers<span class="text-gradient">LB</span></h1>
-    <p class="section-title" style="margin-bottom:0;font-size:12px;">1v1 Gaming Leaderboard &amp; Stats Tracker</p>
+<div class="flex flex-col items-center text-center py-10 sm:py-16 animate-slide-up opacity-0 stagger-1">
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white mb-3">clukzers<span style="color:#e8197d">LB</span></h1>
+    <p class="text-sm text-gray-500 uppercase tracking-widest mb-10">1v1 Gaming Leaderboard &amp; Stats Tracker</p>
 
-    <div class="flex gap-3 mt-10">
-        <a href="/leaderboard" class="btn btn-primary px-8 py-3 text-sm">View Leaderboard</a>
+    <div class="flex gap-3">
+        <a href="/leaderboard" class="btn btn-pink px-8 py-3 text-sm">View Leaderboard</a>
         {% if request.session.get("user") %}
         <a href="/report" class="btn px-8 py-3 text-sm">Report Match</a>
         {% else %}
@@ -14,26 +14,26 @@
     </div>
 </div>
 
-<div class="stats-grid animate-slide-up opacity-0 stagger-2">
-    <div class="stat-card text-center" style="--stat-color: #e8197d;">
-        <div class="stat-value text-white" id="totalPlayers">—</div>
-        <div class="stat-label">Total Players</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 animate-slide-up opacity-0 stagger-2">
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="totalPlayers">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Total Players</div>
     </div>
-    <div class="stat-card text-center" style="--stat-color: #00e676;">
-        <div class="stat-value text-white" id="totalMatches">—</div>
-        <div class="stat-label">Matches Played</div>
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="totalMatches">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Matches Played</div>
     </div>
-    <div class="stat-card text-center" style="--stat-color: #ffd700;">
-        <div class="stat-value text-white" id="topPlayer">—</div>
-        <div class="stat-label">Top Player</div>
+    <div class="card p-5 text-center card-hover">
+        <div class="text-2xl font-extrabold text-white" id="topPlayer">—</div>
+        <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Top Player</div>
     </div>
 </div>
 
 <div class="mt-8 animate-slide-up opacity-0 stagger-3">
-    <div class="card p-6">
+    <div class="card p-5">
         <h2 class="text-sm font-bold text-white mb-1">Activity Feed</h2>
-        <p class="section-title" style="margin-bottom:0;">Recent matches &amp; new players</p>
-        <div id="activityFeed" class="space-y-2 min-h-[100px] mt-4">
+        <p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Recent matches &amp; new players</p>
+        <div id="activityFeed" class="space-y-2 min-h-[100px]">
             <div class="text-xs text-gray-600 animate-pulse">Loading...</div>
         </div>
     </div>
@@ -58,13 +58,13 @@ async function loadStats() {
     } else {
         feed.innerHTML = activity.map(a => {
             const icon = a.type === 'match' ? '<span style="color:#e8197d">●</span>' : '<span style="color:#00e676">+</span>';
-            return `<div class="flex items-start gap-3 py-2" style="border-bottom:1px solid var(--border);">
+            return `<div class="flex items-start gap-3 py-2" style="border-bottom:1px solid rgba(255,255,255,0.04);">
                 <div class="mt-0.5 text-xs">${icon}</div>
                 <div class="flex-1 min-w-0">
                     <div class="text-xs text-white truncate">${window.esc(a.message)}</div>
-                    ${a.detail ? `<div class="text-[11px] text-gray-600">${window.esc(a.detail)}</div>` : ''}
+                    ${a.detail ? `<div class="text-[11px] sm:text-[10px] text-gray-600">${window.esc(a.detail)}</div>` : ''}
                 </div>
-                <div class="text-[11px] text-gray-600 whitespace-nowrap">${window.esc(a.time_ago)}</div>
+                <div class="text-[11px] sm:text-[10px] text-gray-600 whitespace-nowrap">${window.esc(a.time_ago)}</div>
             </div>`;
         }).join('');
     }

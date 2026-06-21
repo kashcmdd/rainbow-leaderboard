@@ -1,22 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
+
+
 <div class="max-w-4xl mx-auto">
     <h1 class="text-2xl font-extrabold text-white mb-6">Player Comparison</h1>
 
-    <div class="card p-6 mb-8">
-        <div class="stats-grid mb-4">
+    <div class="card p-6 mb-8" style="background:#141416">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="relative">
-                <label class="section-title">Player 1</label>
-                <input type="text" id="player1Input" class="search-wrap" placeholder="Search player..." autocomplete="off" style="padding-left:14px;border:1px solid var(--border);">
-                <div id="player1Suggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1"></div>
+                <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Player 1</label>
+                <input type="text" id="player1Input" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Search player..." autocomplete="off">
+                <div id="player1Suggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1" style="background:#1c1c1f"></div>
             </div>
             <div class="relative">
-                <label class="section-title">Player 2</label>
-                <input type="text" id="player2Input" class="search-wrap" placeholder="Search player..." autocomplete="off" style="padding-left:14px;border:1px solid var(--border);">
-                <div id="player2Suggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1"></div>
+                <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Player 2</label>
+                <input type="text" id="player2Input" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Search player..." autocomplete="off">
+                <div id="player2Suggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1" style="background:#1c1c1f"></div>
             </div>
         </div>
-        <button id="compareBtn" class="btn btn-primary w-full mt-4 py-3 text-sm" disabled>Compare</button>
+        <button id="compareBtn" class="btn btn-pink w-full mt-4 py-3 text-sm font-bold" disabled>Compare</button>
     </div>
 
     <div id="compareResults" class="hidden"></div>
@@ -35,6 +37,7 @@ function setupSearch(inputId, suggestId, onSelect) {
     var input = document.getElementById(inputId);
     var suggestions = document.getElementById(suggestId);
     var selected = null;
+
     input.addEventListener('input', function() {
         var val = this.value.toLowerCase().trim();
         if (!val) { suggestions.classList.add('hidden'); return; }
@@ -56,30 +59,51 @@ function setupSearch(inputId, suggestId, onSelect) {
             });
         });
     });
-    input.addEventListener('keydown', function(e) { if (e.key === 'Escape') suggestions.classList.add('hidden'); });
-    document.addEventListener('click', function(e) { if (!e.target.closest('#' + inputId + ', #' + suggestId)) suggestions.classList.add('hidden'); });
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') suggestions.classList.add('hidden');
+    });
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#' + inputId + ', #' + suggestId)) suggestions.classList.add('hidden');
+    });
     return { getSelected: function() { return selected; } };
 }
 
-setupSearch('player1Input', 'player1Suggestions', function(s) { selectedP1 = s; document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2); });
-setupSearch('player2Input', 'player2Suggestions', function(s) { selectedP2 = s; document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2); });
+setupSearch('player1Input', 'player1Suggestions', function(s) {
+    selectedP1 = s;
+    document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2);
+});
+
+setupSearch('player2Input', 'player2Suggestions', function(s) {
+    selectedP2 = s;
+    document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2);
+});
 
 document.getElementById('compareBtn').addEventListener('click', async function() {
     if (!selectedP1 || !selectedP2) return;
-    var btn = this; btn.disabled = true; btn.textContent = 'Loading...';
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
     var results = document.getElementById('compareResults');
     results.classList.remove('hidden');
-    results.innerHTML = '<div class="card p-8 animate-shimmer"><div class="h-4 bg-white/5 rounded w-3/4 mb-4"></div><div class="h-20 card"></div></div>';
+    results.innerHTML = '<div class="card p-8 animate-pulse"><div class="h-4 bg-white/5 rounded w-3/4 mb-4"></div><div class="h-20 bg-white/5 rounded-lg"></div></div>';
+
     try {
         var res = await fetch('/api/players/compare?player1=' + selectedP1.id + '&player2=' + selectedP2.id);
         if (!res.ok) { results.innerHTML = '<div class="card p-8 text-center"><div class="text-sm text-gray-500">Failed to load comparison.</div></div>'; return; }
-        renderComparison(results, await res.json());
-    } catch (e) { results.innerHTML = '<div class="card p-8 text-center"><div class="text-sm text-gray-500">Error loading data.</div></div>'; }
-    finally { btn.disabled = false; btn.textContent = 'Compare'; }
+        var data = await res.json();
+        renderComparison(results, data);
+    } catch (e) {
+        results.innerHTML = '<div class="card p-8 text-center"><div class="text-sm text-gray-500">Error loading data.</div></div>';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Compare';
+    }
 });
 
 function renderComparison(container, data) {
-    var p1 = data.player1, p2 = data.player2, h2h = data.head_to_head;
+    var p1 = data.player1, p2 = data.player2;
+    var h2h = data.head_to_head;
+
     var p1Best = p1.ratings.slice().sort(function(a, b) { return b.elo - a.elo; })[0] || { elo: 0, rank_title: 'Unranked', rank_color: '#666', wins: 0, losses: 0 };
     var p2Best = p2.ratings.slice().sort(function(a, b) { return b.elo - a.elo; })[0] || { elo: 0, rank_title: 'Unranked', rank_color: '#666', wins: 0, losses: 0 };
 
@@ -89,56 +113,67 @@ function renderComparison(container, data) {
         var wr = totWins + totLosses > 0 ? (totWins / (totWins + totLosses) * 100).toFixed(0) : 0;
         var initial = player.username.charAt(0).toUpperCase();
         var rankIcon = best.rank_title.toLowerCase().replace(/ /g, '_') + '.svg';
-        return '<div class="stat-card text-center animate-slide-up opacity-0 stagger-' + (side === 1 ? '1' : '2') + '" style="--stat-color:' + best.rank_color + ';border-top:3px solid ' + best.rank_color + '">' +
-            '<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-extrabold mx-auto mb-3 overflow-hidden" style="background:' + best.rank_color + '20;color:' + best.rank_color + '">' +
-            (player.avatar_url ? '<img src="' + window.esc(player.avatar_url) + '" class="w-full h-full object-cover">' : initial) + '</div>' +
-            '<div class="stat-value" style="color:' + best.rank_color + '">' + window.esc(player.username) + '</div>' +
-            '<div class="flex items-center gap-2 justify-center mt-2"><img src="/static/rank-icons/' + rankIcon + '" alt="' + window.esc(best.rank_title) + '" class="w-5 h-5"><span class="badge badge-pink" style="background:' + best.rank_color + '15;color:' + best.rank_color + '">' + window.esc(best.rank_title) + '</span></div>' +
-            '<div class="podium-elo mt-2" style="color:' + best.rank_color + '">' + best.elo + '</div>' +
-            '<div class="flex items-center gap-3 justify-center mt-2 text-xs"><span style="color:#00e676">' + totWins + 'W</span><span class="text-gray-700">·</span><span style="color:#ef4444">' + totLosses + 'L</span><span class="text-gray-700">·</span><span style="color:' + best.rank_color + '">' + wr + '%</span></div>' +
-        '</div>';
+        return '<div class="card p-5 animate-slide-up opacity-0 stagger-' + (side === 1 ? '1' : '2') + '" style="background:#141416;border-top:3px solid ' + best.rank_color + '">' +
+            '<div class="flex flex-col items-center text-center mb-4">' +
+            '<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-extrabold mb-3 overflow-hidden" style="background:' + best.rank_color + '20;color:' + best.rank_color + '">' +
+            (player.avatar_url ? '<img src="' + window.esc(player.avatar_url) + '" class="w-full h-full object-cover">' : initial) +
+            '</div>' +
+            '<h2 class="text-lg font-extrabold text-white">' + window.esc(player.username) + '</h2>' +
+            '<div class="flex items-center gap-2 mt-2">' +
+            '<img src="/static/rank-icons/' + rankIcon + '" alt="' + window.esc(best.rank_title) + '" class="w-5 h-5">' +
+            '<span class="text-xs font-extrabold uppercase tracking-wider" style="color:' + best.rank_color + '">' + window.esc(best.rank_title) + '</span></div>' +
+            '<div class="text-3xl font-extrabold mt-2" style="color:' + best.rank_color + '">' + best.elo + '</div>' +
+            '<div class="flex items-center gap-3 mt-2 text-xs"><span style="color:#00e676">' + totWins + 'W</span><span class="text-gray-700">·</span><span style="color:#ef4444">' + totLosses + 'L</span><span class="text-gray-700">·</span><span style="color:' + best.rank_color + '">' + wr + '%</span></div>' +
+            '</div></div>';
     }
 
     function h2hCard(h2h) {
         var wrP1 = h2h.total_matches > 0 ? (h2h.player1_wins / h2h.total_matches * 100).toFixed(0) : 0;
-        return '<div class="card p-5 animate-slide-up opacity-0 stagger-3 text-center">' +
-            '<h3 class="section-title text-center">Head to Head</h3>' +
-            '<div class="flex items-center justify-center gap-6 mb-4">' +
-                '<div><div class="text-3xl font-extrabold" style="color:#00e676">' + h2h.player1_wins + '</div><div class="text-[10px] text-gray-600 mt-1">' + window.esc(p1.username) + '</div></div>' +
-                '<div class="vs-divider">VS</div>' +
-                '<div><div class="text-3xl font-extrabold" style="color:#ef4444">' + h2h.player2_wins + '</div><div class="text-[10px] text-gray-600 mt-1">' + window.esc(p2.username) + '</div></div>' +
+        var wrP2 = h2h.total_matches > 0 ? (h2h.player2_wins / h2h.total_matches * 100).toFixed(0) : 0;
+        return '<div class="card p-5 animate-slide-up opacity-0 stagger-3" style="background:#141416">' +
+            '<h3 class="text-xs font-bold text-white uppercase tracking-widest text-center mb-4">Head to Head</h3>' +
+            '<div class="flex items-center justify-center gap-4 mb-4">' +
+            '<div class="text-center"><div class="text-2xl font-extrabold" style="color:#00e676">' + h2h.player1_wins + '</div><div class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider mt-1">' + window.esc(p1.username) + '</div></div>' +
+            '<div class="vs-divider">VS</div>' +
+            '<div class="text-center"><div class="text-2xl font-extrabold" style="color:#ef4444">' + h2h.player2_wins + '</div><div class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider mt-1">' + window.esc(p2.username) + '</div></div>' +
             '</div>' +
-            '<div class="text-xs text-gray-600 mb-4">Total: ' + h2h.total_matches + ' matches · Win Rate: ' + wrP1 + '% / ' + (100 - wrP1) + '%</div>' +
-            '<div class="h-2 rounded-full overflow-hidden bg-white/5"><div class="h-full rounded-full" style="width:' + (h2h.total_matches > 0 ? (h2h.player1_wins / h2h.total_matches * 100) : 0) + '%;background:linear-gradient(90deg,#00e676,#e8197d)"></div></div>' +
-        '</div>';
+            '<div class="flex items-center justify-center gap-4 text-xs text-gray-600">' +
+            '<span>Total: ' + h2h.total_matches + ' matches</span>' +
+            '<span>·</span>' +
+            '<span>Win Rate: ' + wrP1 + '% / ' + wrP2 + '%</span>' +
+            '</div>' +
+            '<div class="mt-4 h-2 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06)">' +
+            '<div class="h-full rounded-full" style="width:' + (h2h.total_matches > 0 ? (h2h.player1_wins / h2h.total_matches * 100) : 0) + '%;background:linear-gradient(90deg,#00e676,#e8197d)"></div>' +
+            '</div></div>';
     }
 
     function matchList(matches) {
         if (matches.length === 0) return '<div class="card p-8 text-center animate-slide-up opacity-0 stagger-4"><div class="text-sm text-gray-500">No matches between these players.</div></div>';
-        var html = '<div class="animate-slide-up opacity-0 stagger-4"><h3 class="section-title mb-4">Recent Matches</h3><div class="space-y-2">';
+        var html = '<div class="animate-slide-up opacity-0 stagger-4"><h3 class="text-xs font-bold text-white uppercase tracking-widest mb-4">Recent Matches</h3><div class="space-y-2">';
         for (var i = 0; i < matches.length; i++) {
-            var m = matches[i], isWin = m.result === 'win';
-            html += '<div class="match-card ' + (isWin ? 'match-card-win' : 'match-card-loss') + ' animate-slide-up opacity-0" style="animation-delay:' + (0.08 * i) + 's">' +
-                '<div class="flex items-center justify-between" style="position:relative;z-index:1;">' +
-                    '<div class="flex items-center gap-2 min-w-0">' +
-                        '<span class="badge ' + (isWin ? 'badge-green' : 'badge-red') + '">' + (isWin ? 'W' : 'L') + '</span>' +
-                        '<span class="text-sm font-bold text-white">' + window.esc(m.opponent) + '</span>' +
-                        '<span class="text-[10px] text-gray-600">' + window.esc(m.format) + '</span>' +
-                    '</div>' +
-                    '<div class="flex items-center gap-2">' +
-                        '<span class="text-sm font-extrabold text-white">' + m.score_a + '-' + m.score_b + '</span>' +
-                        '<span class="text-[10px] text-gray-600">' + new Date(m.timestamp).toLocaleDateString() + '</span>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
+            var m = matches[i];
+            var isWin = m.result === 'win';
+            var dateStr = new Date(m.timestamp).toLocaleDateString();
+            html += '<div class="card p-3 ' + (isWin ? 'match-card-win' : 'match-card-loss') + '" style="background:#141416;box-shadow:inset 0 0 40px ' + (isWin ? 'rgba(0,230,118,0.08)' : 'rgba(239,68,68,0.08)') + '">' +
+                '<div class="flex items-center justify-between">' +
+                '<div class="flex items-center gap-2 min-w-0">' +
+                '<span class="text-xs font-extrabold px-2 py-0.5 rounded" style="background:' + (isWin ? 'rgba(0,230,118,0.2)' : 'rgba(239,68,68,0.2)') + ';color:' + (isWin ? '#00e676' : '#ef4444') + '">' + (isWin ? 'W' : 'L') + '</span>' +
+                '<span class="text-sm font-bold text-white">' + window.esc(m.opponent) + '</span>' +
+                '<span class="text-[10px] text-gray-600">' + window.esc(m.format) + '</span></div>' +
+                '<div class="flex items-center gap-2"><span class="text-sm font-extrabold text-white">' + m.score_a + '-' + m.score_b + '</span>' +
+                '<span class="text-[10px] text-gray-600">' + dateStr + '</span></div></div></div>';
         }
         html += '</div></div>';
         return html;
     }
 
     container.innerHTML =
-        '<div class="stats-grid mb-6">' + playerCard(p1, p1Best, 1) + playerCard(p2, p2Best, 2) + '</div>' +
-        h2hCard(h2h) + matchList(h2h.matches);
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">' +
+        playerCard(p1, p1Best, 1) +
+        playerCard(p2, p2Best, 2) +
+        '</div>' +
+        h2hCard(h2h) +
+        matchList(h2h.matches);
 }
 loadPlayers();
 </script>
