@@ -334,7 +334,7 @@ async function loadData() {
             fetch('/api/players/' + PLAYER_ID).then(r => r.json()),
             fetch('/api/matches?player_id=' + PLAYER_ID + '&limit=50').then(r => r.json()),
             fetch('/api/players/' + PLAYER_ID + '/seasons').then(r => r.json()).catch(() => []),
-            fetch('/api/players/' + PLAYER_ID + '/elo-history').then(r => r.json()).catch(() => []),
+            fetch('/api/players/' + PLAYER_ID + '/history').then(r => r.json()).catch(() => []),
         ]);
         renderProfile(root, { player: pd, matches: matchesRes, seasons: seasonsRes, eloHistory: eloHist });
     } catch (e) {
