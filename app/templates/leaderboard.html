@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-
+<style>
+@keyframes countUp { 0% { opacity:0; transform:translateY(4px); } 100% { opacity:1; transform:translateY(0); } }
+.animate-count { animation: countUp 0.6s ease-out forwards; }
+.podium-card { transition: all 0.3s ease; position: relative; overflow: hidden; }
+.podium-card:hover { transform: translateY(-4px); }
+.podium-card::before { content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s; background: linear-gradient(180deg, transparent 60%, var(--medal-color)08); }
+.podium-card:hover::before { opacity: 1; }
+.medal-icon { font-size: 20px; filter: drop-shadow(0 0 6px var(--medal-color)40); }
+.table-row { transition: all 0.2s ease; }
+.table-row:hover { background: rgba(255,255,255,0.02); }
+.table-row td:first-child { border-left: 2px solid transparent; border-radius: 4px 0 0 4px; }
+.table-row:hover td:first-child { border-left-color: var(--row-color, rgba(232,25,125,0.3)); }
+</style>
 
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
     <h1 class="text-2xl font-extrabold text-white">Leaderboard</h1>

@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
-
+<style>
+.checkbox { accent-color: #e8197d; width:16px; height:16px; cursor:pointer; }
+.rank-dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.avatar-sm { width:28px; height:28px; border-radius:50%; object-fit:cover; background:#1c1c1f; flex-shrink:0; cursor:pointer; }
+.dist-bar { height:6px; border-radius:3px; transition:width 0.6s ease; }
+.sort-btn { cursor:pointer; user-select:none; }
+.sort-btn:hover { color:#e8197d; }
+.banned-row { background:rgba(239,68,68,0.04); }
+.banned-row td input { color:#ef4444 !important; }
+.profile-sidepanel { position:fixed; top:0; right:0; bottom:0; width:420px; max-width:100vw; z-index:100; background:#141416; border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s ease; overflow-y:auto; }
+.profile-sidepanel.open { transform:translateX(0); }
+.profile-backdrop { position:fixed; inset:0; z-index:99; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity 0.3s ease; }
+.profile-backdrop.open { opacity:1; pointer-events:auto; }
+.pagination-btn { min-width:32px; text-align:center; }
+</style>
 
 <h1 class="text-2xl font-extrabold text-white mb-6">Admin Panel</h1>
 

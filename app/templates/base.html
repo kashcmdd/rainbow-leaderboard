@@ -5,45 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>clukzersLB</title>
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
-    <link href="/static/css/styles.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { scrollbar-width: thin; scrollbar-color: #2a2a2e #0d0d0f; }
+        *::-webkit-scrollbar { width: 6px; }
+        *::-webkit-scrollbar-track { background: #0d0d0f; }
+        *::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+        body { background: #0d0d0f; }
+        .card { background: #141416; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+        button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; outline: none; }
+        button:focus, button:active, a:focus, a:active { outline: none; box-shadow: none; background-color: inherit; }
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #e8197d; outline-offset: 2px; }
+        input, select, textarea { transition: all 0.2s ease; }
+        input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input:focus, select:focus, textarea:focus { border-color: #e8197d !important; box-shadow: 0 0 0 2px rgba(232,25,125,0.15) !important; outline: none; }
+        .stagger-1 { animation-delay: 0.1s; }
+        .stagger-2 { animation-delay: 0.2s; }
+        .stagger-3 { animation-delay: 0.3s; }
+        .stagger-4 { animation-delay: 0.4s; }
+        .stagger-5 { animation-delay: 0.5s; }
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes slideUp { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { border-color: rgba(232,25,125,0.2); }
+        .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        .btn { border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; color: #fff; transition: all 0.15s ease; background: transparent; }
+        .btn:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.18); }
+        .btn-pink { border-color: #e8197d; color: #e8197d; }
+        .btn-pink:hover { background: rgba(232,25,125,0.1); }
+        .btn-danger { border-color: #ef4444; color: #ef4444; }
+        .btn-danger:hover { background: rgba(239,68,68,0.1); }
+    </style>
 </head>
-<body>
-    <nav class="navbar">
-        <div class="nav-inner">
-            <a href="/" class="nav-logo">clukzers<span class="rainbow">LB</span></a>
-            <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
-            <div class="nav-links" id="mobileMenu">
-                <a href="/leaderboard" class="nav-link{% if request.path == '/leaderboard' %} active{% endif %}">Leaderboard</a>
-                <a href="/tournaments" class="nav-link{% if request.path.startswith('/tournament') %} active{% endif %}">Tournaments</a>
-                <a href="/seasons" class="nav-link{% if request.path == '/seasons' %} active{% endif %}">Seasons</a>
-                <a href="/compare" class="nav-link{% if request.path == '/compare' %} active{% endif %}">Compare</a>
+<body class="font-sans text-gray-100 min-h-screen">
+    <nav class="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-3" style="background:#0d0d0f; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-2">
+            <a href="/" class="flex items-center gap-2 shrink-0">
+                <span class="text-base sm:text-lg font-extrabold text-white">clukzers<span style="color:#e8197d">LB</span></span>
+            </a>
+            <div class="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                <a href="/leaderboard" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Leaderboard</a>
+                <a href="/tournaments" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Tournaments</a>
+                <a href="/seasons" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Seasons</a>
+                <a href="/compare" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Compare</a>
                 {% if request.session.get("user") %}
-                    <a href="/report" class="nav-link{% if request.path == '/report' %} active{% endif %}">Report</a>
+                    <a href="/report" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Report</a>
                     {% if request.session.get("user").get("is_admin") %}
-                        <a href="/admin" class="nav-link{% if request.path == '/admin' %} active{% endif %}">Admin</a>
+                        <a href="/admin" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Admin</a>
                     {% endif %}
-                    <div class="nav-divider"></div>
-                    <a href="/profile" class="nav-user">
-                        <span class="nav-user-name">{{ request.session.get("user").get("username") }}</span>
-                    </a>
-                    <a href="/auth/logout" class="nav-link" style="color:#ef4444;">Logout</a>
+                    <div class="h-5 w-px shrink-0" style="background:rgba(255,255,255,0.08); margin:0 4px;"></div>
+                    <a href="/profile" class="text-xs font-medium text-gray-400 hover:text-white transition-all whitespace-nowrap px-2 py-2">{{ request.session.get("user").get("username") }}</a>
+                    <a href="/auth/logout" class="btn text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5" style="color:#ef4444;border-color:rgba(239,68,68,0.3);">Logout</a>
                 {% else %}
-                    <div class="nav-divider"></div>
-                    <a href="/auth/login" class="nav-link" style="color:#e8197d;">Sign In</a>
+                    <a href="/auth/login" class="btn btn-pink text-xs whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5">Sign In</a>
                 {% endif %}
             </div>
         </div>
     </nav>
-
-    <div class="page-wrapper">
-        <div class="container">
-            {% block content %}{% endblock %}
-        </div>
-    </div>
-
     <script>
     let csrfToken = null;
     (function retryFetchToken() {
@@ -52,26 +76,14 @@
         }).catch(() => { setTimeout(retryFetchToken, 2000); });
     })();
 
-    function toggleMobileMenu() {
-        document.getElementById('mobileMenu').classList.toggle('open');
-    }
-
-    document.addEventListener('click', function(e) {
-        var menu = document.getElementById('mobileMenu');
-        var btn = document.querySelector('.mobile-menu-btn');
-        if (menu.classList.contains('open') && !menu.contains(e.target) && !btn.contains(e.target)) {
-            menu.classList.remove('open');
-        }
-    });
-
-    window.getCsrfToken = function() { return csrfToken; };
-
+    window.getCsrfToken = function() {
+        return csrfToken;
+    };
     window.esc = function(s) {
         var d = document.createElement('div');
         d.textContent = s == null ? '' : String(s);
         return d.innerHTML;
     };
-
     window.apiFetch = function(url, opts = {}) {
         const token = csrfToken;
         if (token) {
@@ -82,7 +94,6 @@
                 opts.headers['X-CSRF-Token'] = token;
             }
         }
-        opts.credentials = 'include';
         return fetch(url, opts).catch(function() {
             return {
                 ok: false,
@@ -92,14 +103,10 @@
             };
         });
     };
-
-    (function() {
-        var theme = localStorage.getItem('theme');
-        if (theme === 'light') {
-            document.documentElement.classList.remove('dark');
-        }
-    })();
     </script>
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-12 animate-fade-in">
+        {% block content %}{% endblock %}
+    </main>
 
 </body>
 </html>
