@@ -1,63 +1,56 @@
 # Rainbow Leaderboard 🏆
 
+> **Your community's ranked ladder — up and running in 2 commands.**
+
 ![Screenshot](assets/screenshot.png)
 
-A competitive ranking and match-tracking system for **Rainbow Six Siege** — with ELO ratings, seasons, tournaments, and Discord auth. Built for communities that want to run their own ranked ladder.
+A competitive ranking and match-tracking system for **Rainbow Six Siege** built for communities that want to run their own ranked ladder. Features an ELO system with provisional ratings, seasons, tournaments, Discord authentication, and a full admin panel — all wrapped in a clean glassmorphism UI with dark mode.
 
-## Features
+## ✨ What It Can Do
 
-- **ELO Rating System** — Glicko-style with provisional ratings, margin-of-victory weighting, and multi-format support (1v1 through 5v5)
-- **Rating Decay** — Inactive players lose ELO over time to keep the leaderboard competitive
-- **Match Reporting** — Report match results with configurable score formats
-- **Tournaments** — Bracket management tied to the rating system
-- **Seasons** — Time-based leaderboard resets
-- **Discord Auth** — Login with Discord; admin roles for moderation
-- **Admin Panel** — Manage players, matches, seasons, and tournaments
-- **Rank Icons** — Custom SVG rank icons from Bronze through Champion with tier-specific shapes
-- **Player Comparison** — Side-by-side profiles, head-to-head stats, and match history (time-filterable)
-- **CSV/JSON Export** — Download leaderboard data
-- **Bulk Import** — Upload players via CSV in the admin panel
-- **Match Editor** — Edit reported match results from the admin panel
-- **Player Notes** — Internal notes per player for admins
-- **Dark Mode** — Persistent theme toggle with `localStorage`
-- **Seasonal Archives** — Browse leaderboard history by season
+- **ELO Rating System** — Glicko-style with provisional ratings, margin-of-victory weighting, and multi-format support (1v1 through 5v5). Decay keeps inactive players from camping the top.
+- **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
+- **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
+- **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.
+- **Tournaments** — Brackets with visual connector lines, champion highlights, and ELO integration.
+- **Seasons** — Time-based resets with archived leaderboards you can browse anytime.
+- **Admin Panel** — Manage players, edit matches, set ELO values, bulk import from CSV, add notes, and control seasons. All with an audit log.
+- **Discord Auth** — Log in with Discord. Granular admin roles.
+- **Rank Icons** — 41 custom SVG icons from Bronze through Champion, each tier with its own distinct shape (shields, crystals, crowns, etc.).
+- **Dark Mode** — Moon/sun toggle, saved to your browser. Looks great either way.
+- **Download Data** — Export the leaderboard as CSV or JSON with one click.
 
-## Tech Stack
+## 🧱 Tech Stack
 
 | Layer | Tech |
 |---|---|
 | **Backend** | Python 3.12 + FastAPI |
 | **Database** | PostgreSQL 16 via asyncpg + SQLAlchemy (async) |
-| **Frontend** | Server-rendered with Jinja2 templates |
+| **Frontend** | Server-rendered Jinja2 + vanilla JS + Tailwind |
 | **Auth** | Discord OAuth2 |
 | **Scheduling** | APScheduler for ELO decay |
 | **Container** | Docker + Docker Compose |
-| **DB Migrations** | Alembic |
+| **Migrations** | Alembic |
 
-## Quick Start
+## 🚀 Getting Started
 
-### Prerequisites
+### You'll Need
 
 - Docker & Docker Compose
 
-### Setup
+### Let's Go
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/Martty12212/rainbow-leaderboard.git
-   cd rainbow-leaderboard
-   ```
+```bash
+git clone https://github.com/Martty12212/rainbow-leaderboard.git
+cd rainbow-leaderboard
+docker compose up -d --build
+```
 
-2. Build and start:
-   ```bash
-   docker compose up -d --build
-   ```
-
-3. Visit `http://localhost:8000`
+Open `http://localhost:8000` and you're live.
 
 ### Configuration
 
-Copy and edit the environment file:
+Copy `.env.example` to `.env` and fill in your details:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
@@ -67,11 +60,9 @@ DISCORD_CLIENT_SECRET=your-discord-client-secret
 DISCORD_REDIRECT_URI=http://your-domain:8000/auth/callback
 ```
 
-### Admin Access
+To make yourself an admin, add your Discord user ID to `admin_discord_ids` in `app/config.py`.
 
-Add your Discord user ID to `admin_discord_ids` in `app/config.py` to grant admin privileges.
-
-## API Endpoints
+## 📖 API Routes
 
 | Method | Path | Description |
 |---|---|---|
@@ -82,9 +73,9 @@ Add your Discord user ID to `admin_discord_ids` in `app/config.py` to grant admi
 | POST | `/api/matches` | Report a match result (admin) |
 | POST | `/api/players` | Create a new player (admin) |
 
-Full API routes are defined in `app/routers/`.
+Full API docs at `/docs` (Swagger) or `/redoc`.
 
-## Project Structure
+## 📁 Project Layout
 
 ```
 rainbow-leaderboard/
@@ -104,6 +95,6 @@ rainbow-leaderboard/
 └── requirements.txt   # Python dependencies
 ```
 
-## License
+## 📄 License
 
-Built for fun. Use it, tweak it, break it.
+Built for fun, so go ahead — use it, tweak it, break it, make it yours.
