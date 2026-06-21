@@ -1,12 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-
-
 <h1 class="text-2xl font-extrabold text-white mb-2" id="tournamentName">Tournament</h1>
-<p class="text-xs text-gray-500 uppercase tracking-widest mb-6" id="tournamentMeta"></p>
+<p class="section-title mb-6" id="tournamentMeta"></p>
 
 <div id="tournamentContent">
-  <div class="card p-8 animate-pulse"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div></div>
+  <div class="card p-8 animate-shimmer"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div></div>
 </div>
 
 <script>
@@ -19,46 +17,46 @@ async function loadTournament() {
   document.getElementById('tournamentMeta').textContent = `${t.status.toUpperCase()} · ${t.format} · ${t.participants.length} players`;
 
   let html = `<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-    <div class="card p-4"><h3 class="text-xs font-bold text-white uppercase tracking-widest mb-3">Participants</h3>`;
+    <div class="card p-4"><h3 class="section-title">Participants</h3>`;
   for (const p of t.participants) {
-    html += `<div class="flex items-center justify-between py-1.5" style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    html += `<div class="flex items-center justify-between py-1.5" style="border-bottom:1px solid var(--border);">
       <span class="text-sm text-white">#${p.seed} ${p.username}</span>
-      <span class="text-[10px] font-semibold" style="color:${p.rank_color}">${p.rank_title}</span>
+      <span class="badge badge-pink" style="background:${p.rank_color}15;color:${p.rank_color}">${p.rank_title}</span>
     </div>`;
   }
   html += `</div>`;
 
-  // Bracket
   const maxRound = t.matches.length ? Math.max(...t.matches.map(m => m.round)) : 0;
   const roundNames = ['','Quarter-Finals','Semi-Finals','Final','Champion'];
-  html += `<div class="lg:col-span-2 card p-4"><h3 class="text-xs font-bold text-white uppercase tracking-widest mb-3">Bracket</h3>`;
+  html += `<div class="lg:col-span-2 card p-4"><h3 class="section-title">Bracket</h3>`;
   if (t.status === 'pending') {
     html += `<p class="text-xs text-gray-600">Tournament has not started yet.</p>`;
   } else {
-    html += `<div class="flex gap-4 overflow-x-auto pb-4">`;
+    html += `<div class="bracket-wrap">`;
     for (let r = 1; r <= maxRound; r++) {
       const roundMatches = t.matches.filter(m => m.round === r).sort((a,b) => a.position - b.position);
       const rname = roundNames[r] || `Round ${r}`;
-      html += `<div class="bracket-round"><div class="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">${rname}</div>`;
+      html += `<div class="bracket-round"><div class="bracket-round-title">${rname}</div>`;
       for (const m of roundMatches) {
         const hasPlayers = m.team_a_name !== 'TBD' && m.team_b_name !== 'TBD';
         const wonA = m.winner_name === m.team_a_name;
         const wonB = m.winner_name === m.team_b_name;
         const played = m.played;
-        html += `<div class="bracket-match ${played?(wonA||wonB?'won':'lost'):''}">
+        const isChamp = r === maxRound && m.winner_name && m.winner_name !== 'TBD';
+        html += `<div class="bracket-match ${played?(wonA||wonB?'won':'lost'):''} ${isChamp?'champion':''}">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-xs ${wonA?'font-bold text-white':'text-gray-400'}">${esc(m.team_a_name||'TBD')}</span>
-            ${played ? `<span class="text-xs font-bold" style="color:${wonA?'#00e676':'#666'}">${m.score_a}</span>` : ''}
+            <span class="bracket-player-name ${wonA?'winner':'loser'}">${esc(m.team_a_name||'TBD')}</span>
+            ${played ? `<span class="bracket-score" style="color:${wonA?'#00e676':'#666'}">${m.score_a}</span>` : ''}
           </div>
           <div class="flex items-center justify-between gap-3">
-            <span class="text-xs ${wonB?'font-bold text-white':'text-gray-400'}">${esc(m.team_b_name||'TBD')}</span>
-            ${played ? `<span class="text-xs font-bold" style="color:${wonB?'#00e676':'#666'}">${m.score_b}</span>` : ''}
+            <span class="bracket-player-name ${wonB?'winner':'loser'}">${esc(m.team_b_name||'TBD')}</span>
+            ${played ? `<span class="bracket-score" style="color:${wonB?'#00e676':'#666'}">${m.score_b}</span>` : ''}
           </div>
           ${IS_ADMIN && hasPlayers && !played && t.status === 'active' ? `
-            <div class="flex gap-1 mt-2 pt-2" style="border-top:1px solid rgba(255,255,255,0.04);">
-              <input id="sca_${m.id}" type="number" min="0" value="0" class="w-14 sm:w-10 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="A">
+            <div class="flex gap-1 mt-2 pt-2" style="border-top:1px solid var(--border);">
+              <input id="sca_${m.id}" type="number" min="0" value="0" class="w-14 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="A">
               <span class="text-[10px] text-gray-600 self-center">-</span>
-              <input id="scb_${m.id}" type="number" min="0" value="0" class="w-14 sm:w-10 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="B">
+              <input id="scb_${m.id}" type="number" min="0" value="0" class="w-14 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="B">
               <button class="report-tmt-match btn text-xs px-3 py-1.5" data-id="${m.id}" style="color:#e8197d;border-color:rgba(232,25,125,0.3);">Report</button>
             </div>` : ''}
         </div>`;
@@ -71,7 +69,6 @@ async function loadTournament() {
 
   document.getElementById('tournamentContent').innerHTML = html;
 
-  // Wire report buttons
   document.querySelectorAll('.report-tmt-match').forEach(btn => btn.addEventListener('click', async () => {
     const mid = btn.dataset.id;
     const sca = parseInt(document.getElementById('sca_'+mid).value) || 0;
@@ -89,8 +86,7 @@ async function loadTournament() {
 function esc(s) { const d=document.createElement('div'); d.textContent=s||'TBD'; return d.innerHTML; }
 function toast(msg, type) {
   const el = document.createElement('div');
-  el.className = 'fixed bottom-6 right-6 z-50 card px-5 py-3 text-sm shadow-xl border transition-all';
-  el.style.cssText = 'border-color:'+(type==='error'?'#ef4444':type==='success'?'#00e676':'rgba(255,255,255,0.1)')+';background:#1c1c1f;color:#fff;';
+  el.className = 'toast ' + (type==='error' ? 'toast-error' : 'toast-success');
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);

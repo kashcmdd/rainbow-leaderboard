@@ -2,10 +2,10 @@
 {% block content %}
 <div class="flex items-center justify-center min-h-[60vh]">
     <div class="card p-10 w-full max-w-sm text-center animate-slide-up opacity-0 stagger-1">
-        <h1 class="text-2xl font-extrabold text-white mb-2">clukzers<span style="color:#e8197d">LB</span></h1>
-        <p class="text-xs text-gray-500 uppercase tracking-widest mb-8">Sign in to report matches</p>
-        <a href="/auth/discord" class="inline-flex items-center justify-center gap-2 w-full py-3 text-sm font-bold rounded-lg transition-all" style="background:#5865F2;color:#fff;">Sign in with Discord</a>
-        {% if request.query_params.get("error") %}<p class="text-xs text-red-400 mt-4" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px;">Something went wrong.</p>{% endif %}
+        <h1 class="text-2xl font-extrabold text-white mb-2">clukzers<span class="text-gradient">LB</span></h1>
+        <p class="section-title text-center mb-8">Sign in to report matches</p>
+        <a href="/auth/discord" class="btn w-full py-3 text-sm font-bold" style="background:#5865F2;border-color:#5865F2;color:#fff;">Sign in with Discord</a>
+        {% if request.query_params.get("error") %}<p class="mt-4 p-3 rounded-lg text-xs" style="background:var(--red-glow);border:1px solid rgba(239,68,68,0.2);color:#ef4444;">Something went wrong.</p>{% endif %}
     </div>
 </div>
 {% endblock %}

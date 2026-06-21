@@ -1,38 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
-
-
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
     <h1 class="text-2xl font-extrabold text-white">Leaderboard</h1>
-    <div class="flex gap-1.5 flex-wrap">
+    <div class="tabs">
         {% for f in ["1v1", "2v2", "3v3", "4v4", "5v5"] %}
-        <a href="/leaderboard?format={{ f }}"
-           class="px-4 py-1.5 text-xs font-bold rounded-full transition-all"
-           style="{% if format == f %}background:#e8197d;color:#fff;box-shadow:0 0 12px rgba(232,25,125,0.3);{% else %}background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);{% endif %}">
-            {{ f }}
-        </a>
+        <a href="/leaderboard?format={{ f }}" class="tab{% if format == f %} active{% endif %}">{{ f }}</a>
         {% endfor %}
-        <a id="tabToggle" href="#"
-           class="px-4 py-1.5 text-xs font-bold rounded-full transition-all"
-           style="background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);">
-            Teams
-        </a>
-        <a href="/api/leaderboard/{{ format }}/export?type=csv"
-           class="px-3 py-1.5 text-xs font-bold rounded-full transition-all inline-flex items-center gap-1"
-           style="background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);"
-           title="Download CSV">
+        <a id="tabToggle" href="#" class="tab">Teams</a>
+        <a href="/api/leaderboard/{{ format }}/export?type=csv" class="tab" title="Download CSV">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </a>
     </div>
 </div>
 
-<div class="relative mb-6">
-    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input id="playerSearch" class="w-full bg-transparent border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-gray-600 transition-all" placeholder="Search player..." style="background:#141416;">
-</div>
-
-<div class="flex gap-2 mb-6 flex-wrap">
-    <select id="rankFilter" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm text-white">
+<div class="filter-bar">
+    <div class="search-wrap">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="playerSearch" placeholder="Search player...">
+    </div>
+    <select id="rankFilter">
         <option value="">All Ranks</option>
         <option value="Bronze">Bronze</option>
         <option value="Silver">Silver</option>
@@ -47,7 +33,7 @@
 <div id="leaderboard">
     <div class="space-y-2">
         {% for i in range(5) %}
-        <div class="card p-5 animate-pulse"><div class="h-4 bg-white/5 rounded w-3/4"></div></div>
+        <div class="card p-5 animate-shimmer"><div class="h-4 bg-white/5 rounded w-3/4"></div></div>
         {% endfor %}
     </div>
 </div>
@@ -78,14 +64,12 @@ async function loadLeaderboard() {
     const container = document.getElementById('leaderboard');
 
     if (data.length === 0) {
-        container.innerHTML = `<div class="card p-12 text-center"><p class="text-sm text-gray-500 mb-4">No matches yet.</p><a href="/report" class="btn btn-pink text-sm">Report Match</a></div>`;
+        container.innerHTML = `<div class="card p-12 text-center animate-slide-up"><p class="text-sm text-gray-500 mb-4">No matches yet.</p><a href="/report" class="btn btn-primary text-sm">Report Match</a></div>`;
         return;
     }
 
     const top3 = [data[0], data[1], data[2]].filter(Boolean);
-    const rest = data.slice(3);
 
-    // Fetch player avatars for all entries
     const avatarMap = {};
     for (const e of data) {
         if (e._id) {
@@ -99,40 +83,38 @@ async function loadLeaderboard() {
 
     let html = '';
 
-    // ── TOP 3 PODIUM ──
+    // ── PODIUM ──
     if (top3.length > 0) {
-        html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">`;
-        const order = [
-            { entry: top3[1], place: '2', delay: 'stagger-2' },
-            { entry: top3[0], place: '1', delay: 'stagger-1' },
-            { entry: top3[2], place: '3', delay: 'stagger-3' },
+        html += `<div class="podium">`;
+        const places = [
+            { entry: top3[1], cls: 'podium-2', medal: '\u2656', label: '2nd', color: '#a0a0a0', delay: 'stagger-2' },
+            { entry: top3[0], cls: 'podium-1', medal: '\u2655', label: '1st', color: '#e8197d', delay: 'stagger-1' },
+            { entry: top3[2], cls: 'podium-3', medal: '\u2657', label: '3rd', color: '#cd7f32', delay: 'stagger-3' },
         ];
-        const medals = {'1':'#e8197d','2':'#a0a0a0','3':'#cd7f32'};
-        const medalNames = {'1':'1st','2':'2nd','3':'3rd'};
-        for (const p of order) {
+        for (const p of places) {
             if (!p.entry) continue;
             const e = p.entry;
             const wr = (e.win_rate * 100).toFixed(0);
-            const rankColor = e.rank_color;
+            const rc = e.rank_color;
             const avatar = avatarMap[e._id];
             const initial = e.name.charAt(0).toUpperCase();
-            html += `
-            <a href="${e._linkPrefix}${e._id}" class="card p-5 podium-card animate-slide-up opacity-0 ${p.delay}" style="--medal-color:${medals[p.place]};border-top:3px solid ${medals[p.place]};">\n                <div class="flex items-center justify-between mb-3">
+            html += `<div class="${p.cls} animate-slide-up opacity-0 ${p.delay}"><a href="${e._linkPrefix}${e._id}" class="podium-card">
+                <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
-                        <span class="medal-icon" style="color:${medals[p.place]}">${p.place === '1' ? '\u2655' : p.place === '2' ? '\u2656' : '\u2657'}</span>
-                        <span class="text-xs font-extrabold uppercase tracking-wider" style="color:${medals[p.place]}">${medalNames[p.place]}</span>
+                        <span class="podium-medal" style="--medal-color:${p.color};color:${p.color}">${p.medal}</span>
+                        <span class="podium-rank" style="color:${p.color}">${p.label}</span>
                     </div>
-                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5" style="background:${rankColor}15;color:${rankColor};">
-                        <img src="/static/rank-icons/${e.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${e.rank_title}" class="w-4 h-4" style="filter:drop-shadow(0 0 3px ${rankGlow(rankColor)});">
+                    <span class="badge badge-pink flex items-center gap-1.5" style="background:${rc}15;color:${rc};">
+                        <img src="/static/rank-icons/${e.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${e.rank_title}" class="w-4 h-4" style="filter:drop-shadow(0 0 3px ${rankGlow(rc)});">
                         ${e.rank_title}
                     </span>
                 </div>
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold shrink-0 overflow-hidden" style="background:${rankColor}20;color:${rankColor};">
-                        ${avatar ? `<img src="${avatar}" class="w-full h-full object-cover">` : initial}
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="podium-avatar" style="background:${rc}20;color:${rc};">
+                        ${avatar ? `<img src="${avatar}">` : initial}
                     </div>
                     <div>
-                        <div class="text-base font-bold text-white">${e.name}</div>
+                        <div class="podium-name">${e.name}</div>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
                             <span style="color:#00e676;">${e.wins}W</span>
                             <span class="text-gray-700">/</span>
@@ -144,59 +126,54 @@ async function loadLeaderboard() {
                     </div>
                 </div>
                 <div class="flex items-end justify-between">
-                    <div class="text-2xl font-extrabold" style="color:${rankColor};">${e.elo}</div>
-                    <div class="flex-1 max-w-[100px] h-1 rounded-full overflow-hidden ml-3" style="background:rgba(255,255,255,0.06);">
-                        <div class="h-full rounded-full" style="width:${wr}%;background:${rankColor};box-shadow:0 0 8px ${rankGlow(rankColor)};"></div>
+                    <div class="podium-elo" style="color:${rc};">${e.elo}</div>
+                    <div class="podium-bar">
+                        <div class="podium-bar-fill" style="width:${wr}%;background:${rc};box-shadow:0 0 8px ${rankGlow(rc)};"></div>
                     </div>
                 </div>
-            </a>`;
+            </a></div>`;
         }
         html += `</div>`;
     }
 
     // ── TABLE ──
-    const allEntries = data;
-    html += `<div class="card overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
-        <th class="py-3.5 px-2 sm:px-4 text-left w-10 sm:w-12">#</th>
-        <th class="py-3.5 px-2 sm:px-4 text-left">${TAB === 'teams' ? 'Team' : 'Player'}</th>
-        <th class="py-3.5 px-2 sm:px-4 text-left">Rank</th>
-        <th class="py-3.5 px-2 sm:px-4 text-right">ELO</th>
-        <th class="py-3.5 px-2 sm:px-4 text-right">W</th>
-        <th class="py-3.5 px-2 sm:px-4 text-right">L</th>
-        <th class="py-3.5 px-2 sm:px-4 text-right hidden md:table-cell">WR</th>
+    html += `<div class="table-wrap"><table><thead><tr>
+        <th class="w-14">#</th>
+        <th>${TAB === 'teams' ? 'Team' : 'Player'}</th>
+        <th>Rank</th>
+        <th class="text-right">ELO</th>
+        <th class="text-right">W</th>
+        <th class="text-right">L</th>
+        <th class="text-right hidden md:table-cell">WR</th>
     </tr></thead><tbody>`;
 
-    for (const entry of allEntries) {
+    for (const entry of data) {
         const wr = (entry.win_rate * 100).toFixed(0);
         const rc = entry.rank_color;
         const initial = entry.name.charAt(0).toUpperCase();
-        html += `<tr class="table-row" style="--row-color:${rc};border-bottom:1px solid rgba(255,255,255,0.04);">
-            <td class="py-3 px-2 sm:px-4">
-                <span class="font-bold text-sm" style="color:${entry.rank <= 3 ? ['#e8197d','#a0a0a0','#cd7f32'][entry.rank-1] : '#555'}">#${entry.rank}</span>
-            </td>
-            <td class="py-3 px-2 sm:px-4">
-                <div class="flex items-center gap-2 sm:gap-3">
-                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0 overflow-hidden" style="background:${rc}15;color:${rc};">
+        html += `<tr class="table-row" style="--row-color:${rc};">
+            <td><span class="font-bold text-sm" style="color:${entry.rank <= 3 ? ['#e8197d','#a0a0a0','#cd7f32'][entry.rank-1] : '#555'}">#${entry.rank}</span></td>
+            <td>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden" style="background:${rc}15;color:${rc};">
                         ${avatarMap[entry._id] ? `<img src="${avatarMap[entry._id]}" class="w-full h-full object-cover">` : initial}
                     </div>
-                    <a href="${entry._linkPrefix}${entry._id}" class="text-xs sm:text-sm font-semibold text-white hover:text-[#e8197d] transition-colors truncate max-w-[80px] sm:max-w-none">${entry.name}</a>
+                    <a href="${entry._linkPrefix}${entry._id}" class="text-sm font-semibold text-white hover:text-[#e8197d] transition-colors truncate max-w-[120px]">${entry.name}</a>
                 </div>
             </td>
-            <td class="py-3 px-2 sm:px-4">
-                <span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2.5 py-1 rounded-full whitespace-nowrap inline-flex items-center gap-1" style="background:${rc}12;color:${rc};">
-                    <img src="/static/rank-icons/${entry.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${entry.rank_title}" class="w-3 h-3 sm:w-3.5 sm:h-3.5" style="filter:drop-shadow(0 0 3px ${rankGlow(rc)});">
+            <td>
+                <span class="badge badge-pink inline-flex items-center gap-1" style="background:${rc}12;color:${rc};font-size:10px;">
+                    <img src="/static/rank-icons/${entry.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="${entry.rank_title}" class="w-3.5 h-3.5" style="filter:drop-shadow(0 0 3px ${rankGlow(rc)});">
                     ${entry.rank_title}
                 </span>
             </td>
-            <td class="py-3 px-2 sm:px-4 text-right">
-                <span class="text-sm sm:text-base font-extrabold" style="color:${rc};">${entry.elo}</span>
-            </td>
-            <td class="py-3 px-2 sm:px-4 text-right text-xs sm:text-sm font-medium" style="color:#00e676;">${entry.wins}</td>
-            <td class="py-3 px-2 sm:px-4 text-right text-xs sm:text-sm font-medium" style="color:#ef4444;">${entry.losses}</td>
-            <td class="py-3 px-2 sm:px-4 text-right hidden md:table-cell">
+            <td class="text-right"><span class="font-extrabold" style="color:${rc};">${entry.elo}</span></td>
+            <td class="text-right" style="color:#00e676;">${entry.wins}</td>
+            <td class="text-right" style="color:#ef4444;">${entry.losses}</td>
+            <td class="text-right hidden md:table-cell">
                 <div class="flex items-center justify-end gap-2">
-                    ${entry.streak ? `<span class="text-[10px] sm:text-xs font-bold" style="color:${entry.streak > 0 ? '#00e676' : '#ef4444'}">${entry.streak > 0 ? '🔥' : ''}${entry.streak > 0 ? '+' : ''}${entry.streak}</span>` : ''}
-                    <span class="text-[10px] sm:text-xs font-medium" style="color:${rc};">${wr}%</span>
+                    ${entry.streak ? `<span class="text-xs font-bold" style="color:${entry.streak > 0 ? '#00e676' : '#ef4444'}">${entry.streak > 0 ? '🔥' : ''}${entry.streak > 0 ? '+' : ''}${entry.streak}</span>` : ''}
+                    <span class="text-xs font-medium" style="color:${rc};">${wr}%</span>
                     <div class="w-12 h-1 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06);">
                         <div class="h-full rounded-full" style="width:${wr}%;background:${rc};"></div>
                     </div>
@@ -208,19 +185,16 @@ async function loadLeaderboard() {
     html += `</tbody></table></div>`;
     container.innerHTML = html;
 
-    // Search filter
+    // Search
     const searchInput = document.getElementById('playerSearch');
     const applyFilter = () => {
         const q = searchInput.value.toLowerCase();
-        container.querySelectorAll('tbody tr, .grid a').forEach(el => {
-            const name = el.textContent.toLowerCase();
-            el.style.display = name.includes(q) ? '' : 'none';
+        container.querySelectorAll('tbody tr, .podium a').forEach(el => {
+            el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
         });
     };
     searchInput.addEventListener('input', applyFilter);
     if (searchInput.value) applyFilter();
-
-    // Restore scroll position
     window.scrollTo(0, scrollY);
 
     // Rank filter
@@ -236,21 +210,19 @@ async function loadLeaderboard() {
 
 // Tab toggle
 const tabToggle = document.getElementById('tabToggle');
-tabToggle.textContent = TAB === 'teams' ? 'Players' : 'Teams';
-tabToggle.style.cssText = TAB === 'teams'
-    ? 'background:#e8197d;color:#fff;box-shadow:0 0 12px rgba(232,25,125,0.3);'
-    : 'background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);';
+const updateTabStyle = () => {
+    const isTeams = TAB === 'teams';
+    tabToggle.textContent = isTeams ? 'Players' : 'Teams';
+    tabToggle.className = 'tab' + (isTeams ? ' active' : '');
+};
+updateTabStyle();
 tabToggle.addEventListener('click', function(e) {
     e.preventDefault();
-    const newTab = TAB === 'teams' ? 'players' : 'teams';
+    TAB = TAB === 'teams' ? 'players' : 'teams';
     const url = new URL(window.location);
-    url.searchParams.set('tab', newTab);
+    url.searchParams.set('tab', TAB);
     history.pushState({}, '', url);
-    TAB = newTab;
-    tabToggle.textContent = TAB === 'teams' ? 'Players' : 'Teams';
-    tabToggle.style.cssText = TAB === 'teams'
-        ? 'background:#e8197d;color:#fff;box-shadow:0 0 12px rgba(232,25,125,0.3);'
-        : 'background:rgba(255,255,255,0.04);color:#666;border:1px solid rgba(255,255,255,0.06);';
+    updateTabStyle();
     loadLeaderboard();
 });
 
