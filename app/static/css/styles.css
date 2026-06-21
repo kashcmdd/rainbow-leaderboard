@@ -6,7 +6,7 @@
 :root {
   --bg-primary: #08080f;
   --bg-secondary: #0d0d1a;
-  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card: #141416;
   --bg-card-hover: rgba(255, 255, 255, 0.06);
   --bg-elevated: #14141f;
   --bg-input: rgba(255, 255, 255, 0.04);
