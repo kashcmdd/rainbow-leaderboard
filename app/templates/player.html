@@ -1,60 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-    .noise-overlay::before {
-        content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-        opacity: 0.025;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-        background-repeat: repeat; background-size: 256px 256px;
-    }
-    @keyframes pulseGlow {
-        0%, 100% { box-shadow: 0 0 18px var(--glow-color), 0 0 40px var(--glow-color-transparent); }
-        50% { box-shadow: 0 0 32px var(--glow-color), 0 0 70px var(--glow-color-transparent); }
-    }
-    @keyframes pulseRing {
-        0%, 100% { box-shadow: 0 0 0 0 var(--ring-color); }
-        50% { box-shadow: 0 0 0 12px var(--ring-color-transparent); }
-    }
-    @keyframes countPulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.06); }
-        100% { transform: scale(1); }
-    }
-    @keyframes drawLine {
-        0% { stroke-dashoffset: 300; }
-        100% { stroke-dashoffset: 0; }
-    }
-    @keyframes statGlow {
-        0%, 100% { box-shadow: 0 0 8px var(--stat-color), inset 0 0 8px var(--stat-color-transparent); }
-        50% { box-shadow: 0 0 20px var(--stat-color), inset 0 0 16px var(--stat-color-transparent); }
-    }
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-    @keyframes spinRing {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    .animate-pulse-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
-    .animate-pulse-ring { animation: pulseRing 2s ease-in-out infinite; }
-    .animate-count-pulse { animation: countPulse 0.4s ease-out; }
-    .animate-draw-line { animation: drawLine 1.5s ease-out forwards; }
-    .animate-stat-glow { animation: statGlow 3s ease-in-out infinite; }
-    .sparkline-dot { animation: pulseDot 2s ease-in-out infinite; }
-    @keyframes pulseDot { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-    .avatar-ring { background: conic-gradient(var(--ring-color-a), var(--ring-color-b), var(--ring-color-a)); animation: spinRing 3s linear infinite; }
-    .card-hover { transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    .card-hover:hover { transform: translateY(-4px) scale(1.01); }
-    .match-card { position: relative; overflow: hidden; }
-    .match-card::before { content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s ease; border-radius: 12px; }
-    .match-card:hover::before { opacity: 1; }
-    .match-card-win::before { background: linear-gradient(135deg, rgba(0,230,118,0.04), transparent 60%); }
-    .match-card-loss::before { background: linear-gradient(135deg, rgba(239,68,68,0.04), transparent 60%); }
-    .tier-shield { filter: drop-shadow(0 0 8px var(--glow-color)); }
-    .rank-gradient-bg { background: radial-gradient(ellipse 80% 60% at 50% 0%, var(--rank-color-transparent), transparent 70%); }
-    .footer-line { background: linear-gradient(90deg, transparent, rgba(232,25,125,0.3), transparent); }
-</style>
+
 
 <div id="playerRoot">
     <div class="card p-8 animate-pulse"><div class="h-6 bg-white/5 rounded w-48 mb-4"></div><div class="grid grid-cols-2 md:grid-cols-4 gap-3"><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div><div class="h-20 bg-white/5 rounded-lg"></div></div></div>

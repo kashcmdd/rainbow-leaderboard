@@ -1,17 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-    @keyframes pulseGlow {
-        0%, 100% { box-shadow: 0 0 18px var(--glow-color), 0 0 40px var(--glow-color-transparent); }
-        50% { box-shadow: 0 0 32px var(--glow-color), 0 0 70px var(--glow-color-transparent); }
-    }
-    @keyframes countUp { 0% { opacity:0; transform:translateY(4px); } 100% { opacity:1; transform:translateY(0); } }
-    .animate-pulse-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
-    .animate-count { animation: countUp 0.6s ease-out forwards; }
-    .match-card-win { border-left: 3px solid #00e676; }
-    .match-card-loss { border-left: 3px solid #ef4444; }
-    .vs-divider { font-size: 28px; font-weight: 900; color: #e8197d; text-shadow: 0 0 20px rgba(232,25,125,0.3); }
-</style>
+
 
 <div class="max-w-4xl mx-auto">
     <h1 class="text-2xl font-extrabold text-white mb-6">Player Comparison</h1>
