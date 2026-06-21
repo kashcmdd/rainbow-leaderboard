@@ -13,7 +13,14 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** — wi
 - **Seasons** — Time-based leaderboard resets
 - **Discord Auth** — Login with Discord; admin roles for moderation
 - **Admin Panel** — Manage players, matches, seasons, and tournaments
-- **Rank Icons** — Custom SVG rank icons from Bronze through Champion
+- **Rank Icons** — Custom SVG rank icons from Bronze through Champion with tier-specific shapes
+- **Player Comparison** — Side-by-side profiles, head-to-head stats, and match history (time-filterable)
+- **CSV/JSON Export** — Download leaderboard data
+- **Bulk Import** — Upload players via CSV in the admin panel
+- **Match Editor** — Edit reported match results from the admin panel
+- **Player Notes** — Internal notes per player for admins
+- **Dark Mode** — Persistent theme toggle with `localStorage`
+- **Seasonal Archives** — Browse leaderboard history by season
 
 ## Tech Stack
 
@@ -96,10 +103,6 @@ rainbow-leaderboard/
 ├── docker-compose.yml # Service orchestration
 └── requirements.txt   # Python dependencies
 ```
-
-## Known Issues 🐛
-
-- **Profile page has rendering bugs** — working on fixes. History display and some UI elements may not render correctly in certain states. Expect a patch soon.
 
 ## License
 
