@@ -4,7 +4,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / ".env.test"
-load_dotenv(env_path, override=True)
+# Do not override a DATABASE_URL already present in the environment: CI points
+# at its own postgres service, while a local run falls back to .env.test.
+load_dotenv(env_path, override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://rainbow:g4F6McABJjaPBwYDMSTZXwHt05k@db:5432/rainbow_test")
 
 from app.database import init_db, engine
