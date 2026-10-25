@@ -105,12 +105,12 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 @app.exception_handler(404)
 async def not_found(request: Request, exc):
-    return templates.TemplateResponse("error.html", {"request": request, "code": 404, "message": "Page not found"}, status_code=404)
+    return templates.TemplateResponse(request, "error.html", {"code": 404, "message": "Page not found"}, status_code=404)
 
 
 @app.exception_handler(500)
 async def server_error(request: Request, exc):
-    return templates.TemplateResponse("error.html", {"request": request, "code": 500, "message": "Something went wrong"}, status_code=500)
+    return templates.TemplateResponse(request, "error.html", {"code": 500, "message": "Something went wrong"}, status_code=500)
 
 static_dir = Path(__file__).parent / "app" / "static"
 static_dir.mkdir(exist_ok=True)

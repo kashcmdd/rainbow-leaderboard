@@ -32,7 +32,7 @@ async def login(request: Request):
     user = request.session.get("user")
     if user:
         return RedirectResponse(url="/", status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 
 @router.get("/discord")
