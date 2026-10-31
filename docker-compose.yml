@@ -10,14 +10,8 @@ services:
     environment:
     - DATABASE_URL=postgresql+asyncpg://rainbow:${POSTGRES_PASSWORD:-rainbow}@db:5432/rainbow
     image: rainbow-leaderboard-api:latest
-    labels:
-    - homepage.group=Apps
-    - homepage.name=Rainbow Leaderboard
-    - homepage.icon=mdi-trophy
-    - homepage.href=http://217.216.92.83:8082
-    - homepage.description=R6 leaderboard
     ports:
-    - 8082:8000
+    - 127.0.0.1:8090:8000
     restart: unless-stopped
   db:
     container_name: rainbow-leaderboard-db
