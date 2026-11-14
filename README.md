@@ -66,6 +66,13 @@ DISCORD_WEBHOOK_URL=         # optional match announcements
 
 To make yourself an admin, add your Discord user ID to `admin_discord_ids` in `app/config.py`.
 
+### Testing without Discord
+
+Real sign-in is Discord OAuth. For a quick local/tailnet test, set
+`DEV_LOGIN_DISCORD_ID` (and `DEV_LOGIN_ADMIN=true` if you want admin rights),
+restart, then open `/auth/dev`. Unset it for production: while it is set, anyone
+who can reach the site can log in as that user.
+
 ### Migrations
 
 The schema is managed by Alembic. `alembic upgrade head` runs automatically when the

@@ -84,6 +84,8 @@ app = FastAPI(title="Rainbow Leaderboard", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "app" / "templates")
 templates.env.globals["site_name"] = settings.site_name
 templates.env.globals["public_base_url"] = settings.public_base_url
+templates.env.globals["dev_login_enabled"] = bool(settings.dev_login_discord_id)
+templates.env.globals["dev_login_username"] = settings.dev_login_username
 # NOTE: Set COOKIE_SECURE=true behind TLS (reverse proxy or Coolify SSL)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=settings.cookie_secure)
 

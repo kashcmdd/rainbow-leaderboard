@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     site_name: str = "clukzersLB"
     cookie_secure: bool = False
     public_base_url: str = ""
+    dev_login_discord_id: str = ""
+    dev_login_username: str = "DevAdmin"
+    dev_login_admin: bool = False
     discord_webhook_url: str = ""
     discord_client_id: str = ""
     discord_client_secret: str = ""

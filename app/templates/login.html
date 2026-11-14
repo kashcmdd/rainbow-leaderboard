@@ -11,6 +11,13 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.9 3l-.2.4c1.6.4 3 1 4.3 1.8A16.6 16.6 0 0 0 12 3.8a16.6 16.6 0 0 0-8 1.4C5.3 4.4 6.7 3.8 8.3 3.4L8.1 3a19.8 19.8 0 0 0-4.4 1.4C1.5 8.2.9 11.9 1.2 15.5a20 20 0 0 0 6 3l.5-.7c-.6-.2-1.2-.5-1.8-.8l.4-.3a14.3 14.3 0 0 0 12.2 0l.4.3c-.6.3-1.2.6-1.8.8l.5.7a20 20 0 0 0 6-3c.4-4.2-.5-7.9-3.3-11.1ZM8.7 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
             Sign in with Discord
         </a>
+        {% if dev_login_enabled %}
+        <div class="mt-5 border-t pt-5" style="border-color:var(--line)">
+            <p class="micro mb-2">Development login</p>
+            <a href="/auth/dev" class="btn w-full py-2.5">Continue as {{ dev_login_username or 'dev user' }}</a>
+            <p class="micro mt-2">Testing bypass · unset DEV_LOGIN_DISCORD_ID for production</p>
+        </div>
+        {% endif %}
         {% if request.query_params.get("error") %}
         <div class="alert alert-error mt-4 text-left">Something went wrong. Try again.</div>
         {% endif %}

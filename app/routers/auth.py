@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -23,6 +23,8 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 templates.env.globals["csrf_input"] = csrf_input
 templates.env.globals["site_name"] = settings.site_name
 templates.env.globals["public_base_url"] = settings.public_base_url
+templates.env.globals["dev_login_enabled"] = bool(settings.dev_login_discord_id)
+templates.env.globals["dev_login_username"] = settings.dev_login_username
 
 DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize"
 DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
@@ -54,6 +56,52 @@ async def discord_login(request: Request, _rl: None = Depends(rate_limit(20, 60)
         "state": state,
     }
     return RedirectResponse(url=f"{DISCORD_AUTH_URL}?{urlencode(params)}", status_code=302)
+
+
+@router.get("/dev")
+async def dev_login(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(rate_limit(20, 60)),
+):
+    """Testing bypass. Disabled unless DEV_LOGIN_DISCORD_ID is set."""
+    if not settings.dev_login_discord_id:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    discord_id = settings.dev_login_discord_id
+    player = (await db.execute(
+        select(Player).where(Player.discord_id == discord_id)
+    )).scalar_one_or_none()
+
+    if not player:
+        base = (settings.dev_login_username or f"dev-{discord_id[-4:]}").strip()[:64]
+        name = base
+        n = 1
+        while (await db.execute(select(Player).where(Player.username == name))).scalar_one_or_none():
+            n += 1
+            suffix = f"-{n}"
+            name = base[: 64 - len(suffix)] + suffix
+        player = Player(username=name, discord_id=discord_id, is_admin=settings.dev_login_admin)
+        db.add(player)
+        await db.flush()
+        db.add(Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0))
+        await db.commit()
+    elif settings.dev_login_admin and not player.is_admin:
+        player.is_admin = True
+        await db.commit()
+
+    is_admin = (
+        settings.dev_login_admin
+        or discord_id in settings.admin_discord_ids
+        or player.is_admin
+    )
+    request.session["user"] = {
+        "id": discord_id,
+        "username": player.username,
+        "avatar": None,
+        "is_admin": is_admin,
+    }
+    return RedirectResponse(url="/", status_code=302)
 
 
 @router.get("/callback")

@@ -219,6 +219,27 @@ class TestTournaments:
         assert complete.status_code == 200
 
 
+class TestDevLogin:
+    async def test_disabled_by_default(self, anon_client, monkeypatch):
+        monkeypatch.setattr(settings, "dev_login_discord_id", "")
+        r = await anon_client.get("/auth/dev", follow_redirects=False)
+        assert r.status_code == 404
+
+    async def test_enabled_creates_admin_and_reuses_player(self, anon_client, monkeypatch):
+        monkeypatch.setattr(settings, "dev_login_discord_id", "dev-test-id")
+        monkeypatch.setattr(settings, "dev_login_admin", True)
+
+        first = await anon_client.get("/auth/dev", follow_redirects=False)
+        assert first.status_code == 302
+        assert (await anon_client.get("/admin")).status_code == 200
+
+        second = await anon_client.get("/auth/dev", follow_redirects=False)
+        assert second.status_code == 302
+        players = (await anon_client.get("/api/players")).json()
+        assert [p["username"] for p in players] == ["DevAdmin"]
+        assert players[0]["is_admin"] is True
+
+
 class TestAdminAccess:
     async def test_admin_page_uses_allowlist(self, client, admin_allowlist):
         r = await client.get("/admin")
