@@ -1,12 +1,21 @@
 {% extends "base.html" %}
+{% block title %}Report Match — {{ site_name }}{% endblock %}
 {% block content %}
-<div class="max-w-xl mx-auto">
-    <h1 class="text-2xl font-extrabold text-white mb-6">Report Match</h1>
-    <div class="card p-6">
+
+<div class="mx-auto max-w-xl">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Submit result</p>
+            <h1 class="display text-[34px] leading-none sm:text-[40px]">Report match</h1>
+            <p class="micro mt-2">Scores update the ladder immediately</p>
+        </div>
+    </div>
+
+    <div class="panel p-5 sm:p-6">
         <form id="matchForm" class="space-y-5">
             <div>
-                <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Format</label>
-                <select name="format" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white" id="formatSelect">
+                <label class="field-label" for="formatSelect">Format</label>
+                <select name="format" class="field" id="formatSelect">
                     <option value="1v1">1v1</option>
                     <option value="2v2">2v2</option>
                     <option value="3v3">3v3</option>
@@ -14,33 +23,33 @@
                     <option value="5v5">5v5</option>
                 </select>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
+            <div class="relative grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div class="relative">
-                    <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Team A</label>
-                    <div class="flex flex-wrap gap-1.5 mb-2" id="teamAPills"></div>
-                    <input type="text" id="teamAInput" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Search..." autocomplete="off">
-                    <div id="teamASuggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1"></div>
+                    <label class="field-label" for="teamAInput">Team A</label>
+                    <div class="mb-2 flex flex-wrap gap-1.5" id="teamAPills"></div>
+                    <input type="text" id="teamAInput" class="field" placeholder="Search player…" autocomplete="off">
+                    <div id="teamASuggestions" class="panel absolute z-20 mt-1 hidden w-full overflow-hidden"></div>
                 </div>
                 <div class="relative">
-                    <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Team B</label>
-                    <div class="flex flex-wrap gap-1.5 mb-2" id="teamBPills"></div>
-                    <input type="text" id="teamBInput" class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Search..." autocomplete="off">
-                    <div id="teamBSuggestions" class="hidden card overflow-hidden absolute z-10 w-full mt-1"></div>
+                    <label class="field-label" for="teamBInput">Team B</label>
+                    <div class="mb-2 flex flex-wrap gap-1.5" id="teamBPills"></div>
+                    <input type="text" id="teamBInput" class="field" placeholder="Search player…" autocomplete="off">
+                    <div id="teamBSuggestions" class="panel absolute z-20 mt-1 hidden w-full overflow-hidden"></div>
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Score — A</label>
-                    <input type="number" name="score_a" min="0" required class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
+                    <label class="field-label" for="score_a">Score — A</label>
+                    <input type="number" id="score_a" name="score_a" min="0" required class="field">
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-600 uppercase tracking-widest font-semibold mb-2 block">Score — B</label>
-                    <input type="number" name="score_b" min="0" required class="w-full bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white">
+                    <label class="field-label" for="score_b">Score — B</label>
+                    <input type="number" id="score_b" name="score_b" min="0" required class="field">
                 </div>
             </div>
-            <button type="submit" class="btn btn-pink w-full py-3 text-sm">Submit Match</button>
+            <button type="submit" class="btn btn-pink w-full py-2.5">Submit match</button>
         </form>
-        <div id="result" class="hidden mt-4 p-4 rounded-lg text-sm"></div>
+        <div id="result" class="mt-4 hidden" role="status" aria-live="polite"></div>
     </div>
 </div>
 
@@ -49,22 +58,41 @@ let allPlayers = [];
 
 async function loadPlayers() { const res = await fetch('/api/players'); allPlayers = await res.json(); }
 
+function showResult(msg, kind) {
+    const el = document.getElementById('result');
+    el.className = 'alert mt-4 ' + (kind === 'success' ? 'alert-success' : 'alert-error');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+}
+
 function setupTeam(team) {
     const inputId = `team${team}Input`, suggestId = `team${team}Suggestions`, pillsId = `team${team}Pills`;
     const input = document.getElementById(inputId), suggestions = document.getElementById(suggestId), pillsContainer = document.getElementById(pillsId);
     const selected = [];
-    function render() { pillsContainer.innerHTML = selected.map((n,i) => `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full" style="background:rgba(232,25,125,0.1);color:#e8197d;">${n}<button type="button" class="text-gray-500 hover:text-white" data-idx="${i}">&times;</button></span>`).join('');
-        pillsContainer.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { selected.splice(parseInt(b.dataset.idx),1); render(); })); }
+    function render() {
+        pillsContainer.innerHTML = selected.map((n, i) =>
+            `<span class="badge badge-signal">${n}<button type="button" class="ml-1 text-ink3 hover:text-ink" data-idx="${i}" aria-label="Remove ${n}">&times;</button></span>`
+        ).join('');
+        pillsContainer.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { selected.splice(parseInt(b.dataset.idx), 1); render(); }));
+    }
     input.addEventListener('input', () => {
         const val = input.value.toLowerCase().trim();
         if (!val) { suggestions.classList.add('hidden'); return; }
-        const matches = allPlayers.filter(p => p.username.toLowerCase().includes(val) && !selected.includes(p.username)).slice(0,6);
+        const matches = allPlayers.filter(p => p.username.toLowerCase().includes(val) && !selected.includes(p.username)).slice(0, 6);
         if (!matches.length) { suggestions.classList.add('hidden'); return; }
-        suggestions.innerHTML = matches.map(p => `<div class="px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 cursor-pointer" data-name="${p.username}">${p.username}</div>`).join('');
+        suggestions.innerHTML = matches.map(p =>
+            `<div class="cursor-pointer border-b px-3 py-2 text-[13px] text-ink2 last:border-b-0 hover:bg-panel2 hover:text-ink" style="border-color:var(--line)" data-name="${p.username}">${p.username}</div>`
+        ).join('');
         suggestions.classList.remove('hidden');
-        suggestions.querySelectorAll('div').forEach(el => el.addEventListener('click', () => { selected.push(el.dataset.name); input.value=''; suggestions.classList.add('hidden'); render(); }));
+        suggestions.querySelectorAll('div').forEach(el => el.addEventListener('click', () => { selected.push(el.dataset.name); input.value = ''; suggestions.classList.add('hidden'); render(); }));
     });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const v = input.value.trim(); if (v && !selected.includes(v)) { selected.push(v); input.value=''; suggestions.classList.add('hidden'); render(); }}});
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const v = input.value.trim();
+            if (v && !selected.includes(v)) { selected.push(v); input.value = ''; suggestions.classList.add('hidden'); render(); }
+        }
+    });
     document.addEventListener('click', (e) => { if (!e.target.closest(`#${inputId}, #${suggestId}`)) suggestions.classList.add('hidden'); });
     return { selected };
 }
@@ -77,53 +105,40 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
     const score_a = parseInt(document.querySelector('[name="score_a"]').value);
     const score_b = parseInt(document.querySelector('[name="score_b"]').value);
     const resultDiv = document.getElementById('result');
-    
-    // Validation
+
     if (isNaN(score_a) || isNaN(score_b) || score_a < 0 || score_b < 0) {
-        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
-        resultDiv.style.background = 'rgba(239,68,68,0.1)';
-        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
-        resultDiv.style.color = '#ef4444';
-        resultDiv.textContent = 'Please enter valid scores for both teams.';
-        resultDiv.classList.remove('hidden');
+        showResult('Please enter valid scores for both teams.', 'error');
         return;
     }
     if (score_a === score_b) {
-        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
-        resultDiv.style.background = 'rgba(239,68,68,0.1)';
-        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
-        resultDiv.style.color = '#ef4444';
-        resultDiv.textContent = 'Scores cannot be tied. There must be a winner.';
-        resultDiv.classList.remove('hidden');
+        showResult('Scores cannot be tied. There must be a winner.', 'error');
         return;
     }
     if (!teamA.selected.length || !teamB.selected.length) {
-        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
-        resultDiv.style.background = 'rgba(239,68,68,0.1)';
-        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
-        resultDiv.style.color = '#ef4444';
-        resultDiv.textContent = 'Each team needs at least one player.';
-        resultDiv.classList.remove('hidden');
+        showResult('Each team needs at least one player.', 'error');
         return;
     }
-    
+
     resultDiv.classList.add('hidden');
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
-    
+    submitBtn.textContent = 'Submitting…';
+
     try {
-        const res = await window.apiFetch('/api/matches', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ format, team_a_player_names:[...teamA.selected], team_b_player_names:[...teamB.selected], score_a, score_b }) });
-        if (res.ok) { const d = await res.json(); window.location.href = d.winner_player_id ? '/player/'+d.winner_player_id : '/leaderboard?format='+format; }
-        else { const err = await res.json(); resultDiv.className = 'mt-4 p-4 rounded-lg text-sm'; resultDiv.style.background = 'rgba(239,68,68,0.1)'; resultDiv.style.border = '1px solid rgba(239,68,68,0.2)'; resultDiv.style.color = '#ef4444'; resultDiv.textContent = typeof err.detail === 'string' ? err.detail : JSON.stringify(err); resultDiv.classList.remove('hidden'); }
+        const res = await window.apiFetch('/api/matches', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format, team_a_player_names: [...teamA.selected], team_b_player_names: [...teamB.selected], score_a, score_b })
+        });
+        if (res.ok) {
+            const d = await res.json();
+            window.location.href = d.winner_player_id ? '/player/' + d.winner_player_id : '/leaderboard?format=' + format;
+        } else {
+            const err = await res.json();
+            showResult(typeof err.detail === 'string' ? err.detail : JSON.stringify(err), 'error');
+        }
     } catch (e) {
-        resultDiv.className = 'mt-4 p-4 rounded-lg text-sm';
-        resultDiv.style.background = 'rgba(239,68,68,0.1)';
-        resultDiv.style.border = '1px solid rgba(239,68,68,0.2)';
-        resultDiv.style.color = '#ef4444';
-        resultDiv.textContent = 'Network error. Please try again.';
-        resultDiv.classList.remove('hidden');
+        showResult('Network error. Please try again.', 'error');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;

@@ -16,6 +16,7 @@ from app.csrf import csrf_input
 router = APIRouter(prefix="/auth", tags=["auth"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 templates.env.globals["csrf_input"] = csrf_input
+templates.env.globals["site_name"] = settings.site_name
 
 DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize"
 DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"

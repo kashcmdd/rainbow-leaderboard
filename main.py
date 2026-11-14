@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Rainbow Leaderboard", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "app" / "templates")
+templates.env.globals["site_name"] = settings.site_name
 # NOTE: Set https_only=True once TLS termination is set up (reverse proxy or Coolify SSL)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=False)
 

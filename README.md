@@ -4,7 +4,7 @@
 
 ![Screenshot](assets/screenshot.png)
 
-A competitive ranking and match-tracking system for **Rainbow Six Siege** built for communities that want to run their own ranked ladder. Features an ELO system with provisional ratings, seasons, tournaments, Discord authentication, and a full admin panel — all wrapped in a clean glassmorphism UI with dark mode.
+A competitive ranking and match-tracking system for **Rainbow Six Siege** built for communities that want to run their own ranked ladder. Features an ELO system with provisional ratings, seasons, tournaments, Discord authentication, and a full admin panel — all wrapped in a tactical match-dossier UI with dark and light themes.
 
 ## ✨ What It Can Do
 
@@ -55,12 +55,29 @@ Copy `.env.example` to `.env` and fill in your details:
 ```env
 DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
 SECRET_KEY=your-secret-key-here
+SITE_NAME=clukzersLB
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
 DISCORD_REDIRECT_URI=http://your-domain:8000/auth/callback
 ```
 
 To make yourself an admin, add your Discord user ID to `admin_discord_ids` in `app/config.py`.
+
+## 🎨 Frontend
+
+Pages are server-rendered Jinja with vanilla JS. Tailwind compiles to a committed
+stylesheet at `app/static/css/tailwind.min.css`, so the container needs no Node
+build:
+
+```bash
+npm install
+npm run tw:build   # rebuild after changing templates or input.css
+npm run tw:watch   # during development
+```
+
+Design tokens and components are documented in `DESIGN.md`; product context is in
+`PRODUCT.md`. The theme follows `localStorage`, then the system preference; append
+`?theme=light` or `?theme=dark` to force one.
 
 ## 📖 API Routes
 

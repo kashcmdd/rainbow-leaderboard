@@ -1,11 +1,19 @@
 {% extends "base.html" %}
+{% block title %}Sign In — {{ site_name }}{% endblock %}
 {% block content %}
-<div class="flex items-center justify-center min-h-[60vh]">
-    <div class="card p-10 w-full max-w-sm text-center animate-slide-up opacity-0 stagger-1">
-        <h1 class="text-2xl font-extrabold text-white mb-2">clukzers<span style="color:#e8197d">LB</span></h1>
-        <p class="text-xs text-gray-500 uppercase tracking-widest mb-8">Sign in to report matches</p>
-        <a href="/auth/discord" class="inline-flex items-center justify-center gap-2 w-full py-3 text-sm font-bold rounded-lg transition-all" style="background:#5865F2;color:#fff;">Sign in with Discord</a>
-        {% if request.query_params.get("error") %}<p class="text-xs text-red-400 mt-4" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px;">Something went wrong.</p>{% endif %}
+
+<div class="flex min-h-[60vh] items-center justify-center">
+    <div class="panel w-full max-w-sm p-8 text-center">
+        <p class="eyebrow justify-center">Access</p>
+        <h1 class="display text-[30px] leading-none">{{ site_name }}</h1>
+        <p class="micro mt-2">Sign in to report matches</p>
+        <a href="/auth/discord" class="btn mt-8 w-full py-3 text-white" style="background:#5865F2;border-color:#5865F2;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.9 3l-.2.4c1.6.4 3 1 4.3 1.8A16.6 16.6 0 0 0 12 3.8a16.6 16.6 0 0 0-8 1.4C5.3 4.4 6.7 3.8 8.3 3.4L8.1 3a19.8 19.8 0 0 0-4.4 1.4C1.5 8.2.9 11.9 1.2 15.5a20 20 0 0 0 6 3l.5-.7c-.6-.2-1.2-.5-1.8-.8l.4-.3a14.3 14.3 0 0 0 12.2 0l.4.3c-.6.3-1.2.6-1.8.8l.5.7a20 20 0 0 0 6-3c.4-4.2-.5-7.9-3.3-11.1ZM8.7 13.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            Sign in with Discord
+        </a>
+        {% if request.query_params.get("error") %}
+        <div class="alert alert-error mt-4 text-left">Something went wrong. Try again.</div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1,51 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-.checkbox { accent-color: #e8197d; width:16px; height:16px; cursor:pointer; }
+.checkbox { accent-color: var(--signal); width:16px; height:16px; cursor:pointer; }
 .rank-dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.avatar-sm { width:28px; height:28px; border-radius:50%; object-fit:cover; background:#1c1c1f; flex-shrink:0; cursor:pointer; }
+.avatar-sm { width:28px; height:28px; border-radius:50%; object-fit:cover; background:var(--panel-2); flex-shrink:0; cursor:pointer; }
 .dist-bar { height:6px; border-radius:3px; transition:width 0.6s ease; }
 .sort-btn { cursor:pointer; user-select:none; }
-.sort-btn:hover { color:#e8197d; }
-.banned-row { background:rgba(239,68,68,0.04); }
-.banned-row td input { color:#ef4444 !important; }
-.profile-sidepanel { position:fixed; top:0; right:0; bottom:0; width:420px; max-width:100vw; z-index:100; background:#141416; border-left:1px solid rgba(255,255,255,0.06); transform:translateX(100%); transition:transform 0.3s ease; overflow-y:auto; }
-.profile-sidepanel.open { transform:translateX(0); }
-.profile-backdrop { position:fixed; inset:0; z-index:99; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity 0.3s ease; }
-.profile-backdrop.open { opacity:1; pointer-events:auto; }
+.sort-btn:hover { color:var(--signal); }
+.banned-row { background:color-mix(in srgb, var(--loss) 6%, transparent); }
+.banned-row td input { color:var(--loss) !important; }
+.profile-sidepanel { position:fixed; top:0; right:0; bottom:0; width:420px; max-width:100vw; z-index:100; background:var(--panel); border-left:1px solid var(--line); transform:translateX(100%); visibility:hidden; transition:transform 0.3s ease, visibility 0s linear 0.3s; overflow-y:auto; }
+.profile-sidepanel.open { transform:translateX(0); visibility:visible; transition:transform 0.3s ease, visibility 0s; }
+.profile-backdrop { position:fixed; inset:0; z-index:99; background:var(--scrim); opacity:0; pointer-events:none; visibility:hidden; transition:opacity 0.3s ease, visibility 0s linear 0.3s; }
+.profile-backdrop.open { opacity:1; pointer-events:auto; visibility:visible; transition:opacity 0.3s ease, visibility 0s; }
 .pagination-btn { min-width:32px; text-align:center; }
 </style>
 
-<h1 class="text-2xl font-extrabold text-white mb-6">Admin Panel</h1>
+<h1 class="text-2xl font-extrabold text-ink mb-6">Admin Panel</h1>
 
-<div id="toast" class="fixed bottom-6 right-6 z-50 hidden card px-5 py-3 text-sm shadow-xl border transition-all" style="border-color:rgba(255,255,255,0.1);"></div>
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden card px-5 py-3 text-sm shadow-xl border transition-all" style="border-color:var(--line-strong);"></div>
 
-<div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+<div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
-    <h3 id="modalTitle" class="text-lg font-bold text-white mb-2"></h3>
-    <p id="modalDesc" class="text-xs text-gray-500 mb-5"></p>
+    <h3 id="modalTitle" class="text-lg font-bold text-ink mb-2"></h3>
+    <p id="modalDesc" class="text-xs text-ink3 mb-5"></p>
     <div id="modalDanger" class="hidden mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:#ef4444;">Type <span class="font-bold">CONFIRM</span> to proceed:</label>
-      <input id="modalConfirmInput" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(239,68,68,0.3);" placeholder="Type CONFIRM">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2" style="color:var(--loss);">Type <span class="font-bold">CONFIRM</span> to proceed:</label>
+      <input id="modalConfirmInput" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:color-mix(in srgb, var(--loss) 35%, transparent);" placeholder="Type CONFIRM">
     </div>
     <div class="flex gap-2 justify-end">
       <button id="modalCancel" class="btn text-xs">Cancel</button>
-      <button id="modalConfirm" class="btn text-xs" style="border-color:#ef4444;color:#ef4444;" disabled>Confirm</button>
+      <button id="modalConfirm" class="btn text-xs" style="border-color:var(--loss);color:var(--loss);" disabled>Confirm</button>
     </div>
   </div>
 </div>
 
-<div id="eloModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+<div id="eloModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
-    <h3 class="text-lg font-bold text-white mb-1" id="eloModalTitle">Adjust ELO</h3>
-    <p class="text-xs text-gray-500 mb-5" id="eloModalPlayer"></p>
+    <h3 class="text-lg font-bold text-ink mb-1" id="eloModalTitle">Adjust ELO</h3>
+    <p class="text-xs text-ink3 mb-5" id="eloModalPlayer"></p>
     <div class="mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Amount (+/-)</label>
-      <input id="eloAmount" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" placeholder="e.g. 25 or -25">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-ink3">Amount (+/-)</label>
+      <input id="eloAmount" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:var(--line-strong);" type="number" placeholder="e.g. 25 or -25">
     </div>
     <div class="mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Reason <span style="color:#ef4444;">*</span></label>
-      <input id="eloReason" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" placeholder="Reason for adjustment...">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-ink3">Reason <span style="color:var(--loss);">*</span></label>
+      <input id="eloReason" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:var(--line-strong);" placeholder="Reason for adjustment...">
     </div>
     <div class="flex gap-2 justify-end">
       <button id="eloCancel" class="btn text-xs">Cancel</button>
@@ -54,12 +54,12 @@
   </div>
 </div>
 
-<div id="avatarModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+<div id="avatarModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
-    <h3 class="text-lg font-bold text-white mb-1" id="avatarModalTitle">Upload Avatar</h3>
-    <p class="text-xs text-gray-500 mb-5" id="avatarModalPlayer"></p>
+    <h3 class="text-lg font-bold text-ink mb-1" id="avatarModalTitle">Upload Avatar</h3>
+    <p class="text-xs text-ink3 mb-5" id="avatarModalPlayer"></p>
     <div class="mb-4">
-      <input id="avatarFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700">
+      <input id="avatarFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="w-full text-sm text-ink2 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-signal file:text-ink hover:file:bg-signal">
     </div>
     <div class="flex gap-2 justify-end">
       <button id="avatarCancel" class="btn text-xs">Cancel</button>
@@ -68,21 +68,21 @@
   </div>
 </div>
 
-<div id="matchEditModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,0.7);">
+<div id="matchEditModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
-    <h3 class="text-lg font-bold text-white mb-1">Edit Match</h3>
-    <p class="text-xs text-gray-500 mb-5" id="matchEditInfo"></p>
+    <h3 class="text-lg font-bold text-ink mb-1">Edit Match</h3>
+    <p class="text-xs text-ink3 mb-5" id="matchEditInfo"></p>
     <div class="mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Score A</label>
-      <input id="matchScoreA" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" min="0" placeholder="Score A">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-ink3">Score A</label>
+      <input id="matchScoreA" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:var(--line-strong);" type="number" min="0" placeholder="Score A">
     </div>
     <div class="mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Score B</label>
-      <input id="matchScoreB" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);" type="number" min="0" placeholder="Score B">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-ink3">Score B</label>
+      <input id="matchScoreB" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:var(--line-strong);" type="number" min="0" placeholder="Score B">
     </div>
     <div class="mb-4">
-      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-gray-500">Winner</label>
-      <select id="matchWinner" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white" style="border-color:rgba(255,255,255,0.1);">
+      <label class="block text-[10px] font-semibold uppercase tracking-widest mb-2 text-ink3">Winner</label>
+      <select id="matchWinner" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink" style="border-color:var(--line-strong);">
         <option value="a">Team A</option>
         <option value="b">Team B</option>
       </select>
@@ -98,7 +98,7 @@
 <div id="profilePanel" class="profile-sidepanel"></div>
 
 <div id="adminContent">
-  <div class="card p-8 animate-pulse"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div><div class="h-5 bg-white/5 rounded w-1/2"></div></div>
+  <div class="card p-8 animate-pulse"><div class="h-5 bg-panel2 rounded w-3/4 mb-3"></div><div class="h-5 bg-panel2 rounded w-1/2"></div></div>
 </div>
 
 <script>
@@ -106,9 +106,9 @@ let modalResolve, modalReject;
 function toast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.style.borderColor = type === 'success' ? 'rgba(0,230,118,0.3)' : 'rgba(239,68,68,0.3)';
-  t.style.background = type === 'success' ? 'rgba(0,230,118,0.08)' : 'rgba(239,68,68,0.08)';
-  t.style.color = type === 'success' ? '#00e676' : '#ef4444';
+  t.style.borderColor = type === 'success' ? 'color-mix(in srgb, var(--win) 30%, transparent)' : 'color-mix(in srgb, var(--loss) 35%, transparent)';
+  t.style.background = type === 'success' ? 'color-mix(in srgb, var(--win) 8%, transparent)' : 'color-mix(in srgb, var(--loss) 8%, transparent)';
+  t.style.color = type === 'success' ? 'var(--win)' : 'var(--loss)';
   t.classList.remove('hidden');
   setTimeout(() => t.classList.add('hidden'), 3500);
 }
@@ -123,7 +123,7 @@ function showModal(title, desc, dangerous) {
     if (dangerous) {
       dangerDiv.classList.remove('hidden');
       input.value = ''; btn.disabled = true;
-      input.oninput = () => { const ok = input.value.trim().toUpperCase() === 'CONFIRM'; btn.disabled = !ok; btn.style.background = ok ? 'rgba(239,68,68,0.15)' : 'transparent'; };
+      input.oninput = () => { const ok = input.value.trim().toUpperCase() === 'CONFIRM'; btn.disabled = !ok; btn.style.background = ok ? 'color-mix(in srgb, var(--loss) 15%, transparent)' : 'transparent'; };
     } else { dangerDiv.classList.add('hidden'); btn.disabled = false; }
     document.getElementById('confirmModal').classList.remove('hidden');
     document.getElementById('confirmModal').classList.add('flex');
@@ -142,7 +142,7 @@ const RANKS = [
   ["Diamond I",2500,"#6600CC"],["Diamond II",2600,"#7B35FF"],["Diamond III",2700,"#9955FF"],["Diamond IV",2800,"#B388FF"],["Diamond V",2900,"#CCAAFF"],
   ["Champion",3000,"#E8197D"]
 ];
-function getRank(elo) { for (let i=RANKS.length-1;i>=0;i--) { if (elo>=RANKS[i][1]) return RANKS[i]; } return ["Unranked",0,"#666"]; }
+function getRank(elo) { for (let i=RANKS.length-1;i>=0;i--) { if (elo>=RANKS[i][1]) return RANKS[i]; } return ["Unranked",0,"var(--ink-3)"]; }
 
 let allPlayers = [], allRatingData = {}, ownerIds = [], currentPage = 1, pageSize = 20, sortField = null, sortDir = 'asc', searchQuery = '', rankFilter = '', bannedFilter = 'all';
 
@@ -182,58 +182,58 @@ async function loadAdmin() {
 
 function renderStats(s) {
   $('adminContent').insertAdjacentHTML('beforeend', `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6" id="statsRow">
-    <div class="card p-4 text-center animate-slide-up stagger-1"><div class="text-lg font-extrabold text-white">${s.total_players}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Players</div></div>
-    <div class="card p-4 text-center animate-slide-up stagger-2"><div class="text-lg font-extrabold text-white">${s.total_matches}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Matches</div></div>
-    <div class="card p-4 text-center animate-slide-up stagger-3"><div class="text-lg font-extrabold text-white">${s.total_ratings}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Ratings</div></div>
-    <div class="card p-4 text-center animate-slide-up stagger-4"><div class="text-lg font-extrabold text-white">${s.active_players}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Active (7d)</div></div>
-    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-white">${s.avg_elo}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Avg ELO</div></div>
-    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-white">${s.highest_elo}</div><div class="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Highest ELO</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-1"><div class="text-lg font-extrabold text-ink">${s.total_players}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Players</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-2"><div class="text-lg font-extrabold text-ink">${s.total_matches}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Matches</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-3"><div class="text-lg font-extrabold text-ink">${s.total_ratings}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Ratings</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-4"><div class="text-lg font-extrabold text-ink">${s.active_players}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Active (7d)</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-ink">${s.avg_elo}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Avg ELO</div></div>
+    <div class="card p-4 text-center animate-slide-up stagger-5"><div class="text-lg font-extrabold text-ink">${s.highest_elo}</div><div class="text-[10px] text-ink3 uppercase tracking-widest mt-1">Highest ELO</div></div>
   </div>`);
 }
 
 function renderDistribution(s) {
   if (!s.distribution || !s.distribution.length) return;
   const maxCount = Math.max(...s.distribution.map(d=>d.count), 1);
-  let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection"><h2 class="text-sm font-bold text-white mb-3">Rating Distribution</h2><div class="flex flex-wrap gap-3">`;
+  let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection"><h2 class="text-sm font-bold text-ink mb-3">Rating Distribution</h2><div class="flex flex-wrap gap-3">`;
   for (const d of s.distribution) {
     const pct = (d.count / maxCount * 100).toFixed(0);
-    html += `<div class="flex items-center gap-2 w-36"><span class="rank-dot" style="background:${d.color}"></span><span class="text-[10px] text-gray-500 w-20">${d.rank}</span><div class="flex-1 bg-white/5 rounded-full"><div class="dist-bar" style="width:${pct}%;background:${d.color};"></div></div><span class="text-[10px] text-gray-500 w-5 text-right">${d.count}</span></div>`;
+    html += `<div class="flex items-center gap-2 w-36"><span class="rank-dot" style="background:${d.color}"></span><span class="text-[10px] text-ink3 w-20">${d.rank}</span><div class="flex-1 bg-panel2 rounded-full"><div class="dist-bar" style="width:${pct}%;background:${d.color};"></div></div><span class="text-[10px] text-ink3 w-5 text-right">${d.count}</span></div>`;
   }
   html += `</div></div>`;
   $('adminContent').insertAdjacentHTML('beforeend', html);
 }
 
 function renderManagement() {
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="mgmtSection"><h2 class="text-sm font-bold text-white mb-1">Leaderboard Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Clear or reset all ratings</p>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="mgmtSection"><h2 class="text-sm font-bold text-ink mb-1">Leaderboard Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Clear or reset all ratings</p>
     <div class="flex flex-wrap gap-2">
       <button class="btn btn-danger text-xs" data-action="clear-leaderboard">Clear Leaderboard</button>
       <button class="btn text-xs" data-action="reset-leaderboard">Reset Rankings</button>
     </div>
   </div>`);
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="tournamentSection"><h2 class="text-sm font-bold text-white mb-1">Tournament Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Create and manage tournaments</p>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="tournamentSection"><h2 class="text-sm font-bold text-ink mb-1">Tournament Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Create and manage tournaments</p>
     <div class="flex flex-wrap gap-2 mb-3">
-      <input id="tmtName" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600" placeholder="Tournament name..." style="flex:1;min-width:160px;">
-      <select id="tmtFormat" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+      <input id="tmtName" class="bg-transparent border border-line rounded-lg px-3 py-2 text-xs text-ink placeholder-gray-600" placeholder="Tournament name..." style="flex:1;min-width:160px;">
+      <select id="tmtFormat" class="bg-transparent border border-line rounded-lg px-3 py-2 text-xs text-ink">
         <option value="1v1">1v1</option><option value="2v2">2v2</option>
       </select>
       <button id="createTmtBtn" class="btn btn-pink text-xs">Create</button>
     </div>
     <div id="tmtList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
   </div>`);
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-white mb-1">Season Management</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Close the current season to archive standings and reset ELOs</p>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-ink mb-1">Season Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Close the current season to archive standings and reset ELOs</p>
     <div class="flex flex-wrap gap-2">
-      <input id="seasonName" class="bg-transparent border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600" placeholder="Season name..." value="Season" style="width:160px;">
-      <button id="closeSeasonBtn" class="btn text-xs" style="border-color:#ffb700;color:#ffb700;">Close Season</button>
+      <input id="seasonName" class="bg-transparent border border-line rounded-lg px-3 py-2 text-xs text-ink placeholder-gray-600" placeholder="Season name..." value="Season" style="width:160px;">
+      <button id="closeSeasonBtn" class="btn text-xs" style="border-color:var(--warn);color:var(--warn);">Close Season</button>
     </div>
   </div>`);
 }
 
 function renderAddPlayer() {
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="addPlayerSection"><h2 class="text-sm font-bold text-white mb-1">Add Player</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Create a new player account</p>
-    <div class="flex gap-2"><input id="addPlayerInput" class="flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600" placeholder="Username..."><button id="addPlayerBtn" class="btn btn-pink text-xs">Add</button></div>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="addPlayerSection"><h2 class="text-sm font-bold text-ink mb-1">Add Player</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Create a new player account</p>
+    <div class="flex gap-2"><input id="addPlayerInput" class="flex-1 bg-transparent border border-line rounded-lg px-4 py-3 text-sm text-ink placeholder-gray-600" placeholder="Username..."><button id="addPlayerBtn" class="btn btn-pink text-xs">Add</button></div>
   </div>`);
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="bulkImportSection"><h2 class="text-sm font-bold text-white mb-1">Bulk Import</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Upload a .csv file with usernames (one per line)</p>
-    <div class="flex gap-2 items-center"><input id="importFileInput" type="file" accept=".csv" class="w-full text-sm text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700"><button id="importBtn" class="btn btn-pink text-xs">Import</button></div>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="bulkImportSection"><h2 class="text-sm font-bold text-ink mb-1">Bulk Import</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Upload a .csv file with usernames (one per line)</p>
+    <div class="flex gap-2 items-center"><input id="importFileInput" type="file" accept=".csv" class="w-full text-sm text-ink2 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-signal file:text-ink hover:file:bg-signal"><button id="importBtn" class="btn btn-pink text-xs">Import</button></div>
     <div id="importResults" class="mt-3 text-xs hidden"></div>
   </div>`);
 }
@@ -275,26 +275,26 @@ function renderPlayerTable() {
 
   const sortIcon = (f) => sortField === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  let html = `<div class="card p-5 animate-slide-up" id="playerTableCard"><h2 class="text-sm font-bold text-white mb-1">Manage Players</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Inline edit player data</p>`;
+  let html = `<div class="card p-5 animate-slide-up" id="playerTableCard"><h2 class="text-sm font-bold text-ink mb-1">Manage Players</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Inline edit player data</p>`;
 
   // Search / Filter bar
   html += `<div class="flex flex-wrap gap-2 mb-4 items-center">
-    <input id="searchInput" class="bg-transparent border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 flex-1 min-w-[160px]" placeholder="Search username..." value="${searchQuery}">
-    <select id="rankFilter" class="bg-transparent border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white"><option value="">All Ranks</option>${RANKS.map(r => `<option value="${r[0]}" ${rankFilter===r[0]?'selected':''}>${r[0]}</option>`).join('')}</select>
-    <select id="bannedFilter" class="bg-transparent border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white"><option value="all" ${bannedFilter==='all'?'selected':''}>All Players</option><option value="unbanned" ${bannedFilter==='unbanned'?'selected':''}>Active Only</option><option value="banned" ${bannedFilter==='banned'?'selected':''}>Banned Only</option></select>
+    <input id="searchInput" class="bg-transparent border border-line rounded-lg px-4 py-2.5 text-sm text-ink placeholder-gray-600 flex-1 min-w-[160px]" placeholder="Search username..." value="${searchQuery}">
+    <select id="rankFilter" class="bg-transparent border border-line rounded-lg px-3 py-2.5 text-sm text-ink"><option value="">All Ranks</option>${RANKS.map(r => `<option value="${r[0]}" ${rankFilter===r[0]?'selected':''}>${r[0]}</option>`).join('')}</select>
+    <select id="bannedFilter" class="bg-transparent border border-line rounded-lg px-3 py-2.5 text-sm text-ink"><option value="all" ${bannedFilter==='all'?'selected':''}>All Players</option><option value="unbanned" ${bannedFilter==='unbanned'?'selected':''}>Active Only</option><option value="banned" ${bannedFilter==='banned'?'selected':''}>Banned Only</option></select>
   </div>`;
 
   // Sortable column headers
-  const sortable = (label, field) => `<th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-gray-600 uppercase tracking-widest" data-sort="${field}">${label}${sortIcon(field)}</th>`;
+  const sortable = (label, field) => `<th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-ink3 uppercase tracking-widest" data-sort="${field}">${label}${sortIcon(field)}</th>`;
 
-  html += `<div class="overflow-x-auto"><table class="w-full"><thead><tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+  html += `<div class="overflow-x-auto"><table class="w-full"><thead><tr style="border-bottom:1px solid var(--line);">
     <th class="py-3 px-2 w-8 sm:w-10"><input type="checkbox" id="selectAll" class="checkbox"></th>
     <th class="py-3 px-2 w-8 sm:w-10"></th>
-    <th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-gray-600 uppercase tracking-widest" data-sort="username">Name${sortIcon('username')}</th>
+    <th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-ink3 uppercase tracking-widest" data-sort="username">Name${sortIcon('username')}</th>
     ${sortable('ELO','elo')}${sortable('W','wins')}${sortable('L','losses')}
-    <th class="py-3 px-2 text-left text-[10px] font-semibold text-gray-600 uppercase tracking-widest">M</th>
-    <th class="py-3 px-2 text-center text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Rank</th>
-    <th class="py-3 px-2 text-center hidden lg:table-cell text-[10px] font-semibold uppercase tracking-widest" style="color:#e8197d;">Admin</th>
+    <th class="py-3 px-2 text-left text-[10px] font-semibold text-ink3 uppercase tracking-widest">M</th>
+    <th class="py-3 px-2 text-center text-[10px] font-semibold text-ink3 uppercase tracking-widest">Rank</th>
+    <th class="py-3 px-2 text-center hidden lg:table-cell text-[10px] font-semibold uppercase tracking-widest" style="color:var(--signal);">Admin</th>
     <th class="py-3 px-2 text-right"></th>
   </tr></thead><tbody>`;
 
@@ -303,39 +303,39 @@ function renderPlayerTable() {
     const rank = [r.rank_title || getRank(r.elo)[0], 0, r.rank_color || getRank(r.elo)[2]];
     const isOwner = ownerIds.includes(p.discord_id);
     const banned = p.is_banned;
-    html += `<tr class="player-row ${banned?'banned-row':''}" style="border-bottom:1px solid rgba(255,255,255,0.04);" data-id="${p.id}">
+    html += `<tr class="player-row ${banned?'banned-row':''}" style="border-bottom:1px solid var(--line);" data-id="${p.id}">
       <td class="py-2.5 px-2"><input type="checkbox" class="checkbox player-checkbox" value="${p.id}"></td>
       <td class="py-2.5 px-2 relative group">
-        ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-sm open-profile" data-id="${p.id}">` : `<div class="avatar-sm open-profile flex items-center justify-center text-[10px] font-bold" style="background:#1c1c1f;color:#333;" data-id="${p.id}">${p.username[0].toUpperCase()}</div>`}
+        ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-sm open-profile" data-id="${p.id}">` : `<div class="avatar-sm open-profile flex items-center justify-center text-[10px] font-bold" style="background:var(--panel-2);color:var(--ink-3);" data-id="${p.id}">${p.username[0].toUpperCase()}</div>`}
         <div class="absolute top-0 left-0 mt-8 ml-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <button class="avatar-upload text-xs px-2 py-1.5 rounded" style="background:rgba(232,25,125,0.2);color:#e8197d;border:none;min-width:32px;" data-id="${p.id}">📷</button>
-          <button class="avatar-remove text-xs px-2 py-1.5 rounded" style="background:rgba(239,68,68,0.2);color:#ef4444;border:none;min-width:32px;" data-id="${p.id}">✕</button>
+          <button class="avatar-upload text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--signal) 20%, transparent);color:var(--signal);border:none;min-width:32px;" data-id="${p.id}">📷</button>
+          <button class="avatar-remove text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--loss) 25%, transparent);color:var(--loss);border:none;min-width:32px;" data-id="${p.id}">✕</button>
         </div>
       </td>
-      <td class="py-2.5 px-2"><span class="open-profile text-sm font-medium cursor-pointer hover:underline" style="color:${banned?'#ef4444':'#fff'}" data-id="${p.id}">${p.username}${banned?' <span class="text-[10px] font-bold" style="color:#ef4444;">[BANNED]</span>':''}</span></td>
+      <td class="py-2.5 px-2"><span class="open-profile text-sm font-medium cursor-pointer hover:underline" style="color:${banned?'var(--loss)':'var(--ink)'}" data-id="${p.id}">${p.username}${banned?' <span class="text-[10px] font-bold" style="color:var(--loss);">[BANNED]</span>':''}</span></td>
       <td class="py-2.5 px-2">
         <div class="flex items-center gap-1">
-          <span class="text-sm" style="color:${rank[2]}">${r.elo}</span>
-          <button class="elo-adjust text-xs px-2 py-1.5 rounded transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${p.id}" data-name="${p.username}" data-elo="${r.elo}">±</button>
+          <span class="text-sm rank-elo" style="--rank-color:${rank[2]}">${r.elo}</span>
+          <button class="elo-adjust text-xs px-2 py-1.5 rounded transition-all" style="background:var(--signal-soft);color:var(--signal);border:none;" data-id="${p.id}" data-name="${p.username}" data-elo="${r.elo}">±</button>
         </div>
       </td>
-      <td class="py-2.5 px-2 text-right text-sm text-white">${r.wins}</td>
-      <td class="py-2.5 px-2 text-right text-sm text-white">${r.losses}</td>
-      <td class="py-2.5 px-2 text-gray-600 text-sm">${r.matches_played}</td>
-      <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><span class="rank-dot" style="background:${rank[2]}"></span><span class="text-[10px] font-semibold whitespace-nowrap" style="color:${rank[2]}">${rank[0]}</span></div></td>
-      <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="text-xs font-bold" style="color:#ffd700;">👑 Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'rgba(232,25,125,0.15)':'transparent'};color:${p.is_admin?'#e8197d':'#444'};border:1px solid ${p.is_admin?'rgba(232,25,125,0.3)':'rgba(255,255,255,0.06)'};">${p.is_admin?'🛡️ Admin':'👤 User'}</button>`}</td>
+      <td class="py-2.5 px-2 text-right text-sm text-ink">${r.wins}</td>
+      <td class="py-2.5 px-2 text-right text-sm text-ink">${r.losses}</td>
+      <td class="py-2.5 px-2 text-ink3 text-sm">${r.matches_played}</td>
+      <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><span class="rank-dot" style="background:${rank[2]}"></span><span class="text-[10px] font-semibold whitespace-nowrap rank-elo" style="--rank-color:${rank[2]}">${rank[0]}</span></div></td>
+      <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="text-xs font-bold" style="color:var(--warn);">👑 Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'color-mix(in srgb, var(--signal) 15%, transparent)':'transparent'};color:${p.is_admin?'var(--signal)':'var(--ink-3)'};border:1px solid ${p.is_admin?'var(--signal-line)':'var(--line)'};">${p.is_admin?'🛡️ Admin':'👤 User'}</button>`}</td>
       <td class="py-2.5 px-2 text-right"><div class="flex items-center justify-end gap-1">
-        <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'rgba(0,230,118,0.1)':'rgba(239,68,68,0.1)'};color:${banned?'#00e676':'#ef4444'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
-        <button class="save-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${p.id}">Save</button>
-        <button class="delete-btn text-[10px] font-bold w-14 py-1.5 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${p.id}">Delete</button>
+        <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'color-mix(in srgb, var(--win) 10%, transparent)':'color-mix(in srgb, var(--loss) 10%, transparent)'};color:${banned?'var(--win)':'var(--loss)'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
+        <button class="save-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:var(--signal-soft);color:var(--signal);border:none;" data-id="${p.id}">Save</button>
+        <button class="delete-btn text-[10px] font-bold w-14 py-1.5 rounded-lg transition-all" style="background:var(--loss);color:#fff;border:none;" data-id="${p.id}">Delete</button>
       </div></td>
     </tr>`;
   }
   html += '</tbody></table></div>';
 
   // Pagination
-  html += `<div class="flex items-center justify-between mt-4 pt-4" style="border-top:1px solid rgba(255,255,255,0.06);">
-    <span class="text-xs text-gray-500">${filtered.length} players · Page ${currentPage} of ${totalPages}</span>
+  html += `<div class="flex items-center justify-between mt-4 pt-4" style="border-top:1px solid var(--line);">
+    <span class="text-xs text-ink3">${filtered.length} players · Page ${currentPage} of ${totalPages}</span>
     <div class="flex gap-1">`;
   if (currentPage > 1) html += `<button class="page-btn btn text-xs pagination-btn" data-page="${currentPage-1}">‹ Prev</button>`;
   for (let i = Math.max(1, currentPage-2); i <= Math.min(totalPages, currentPage+2); i++) {
@@ -345,8 +345,8 @@ function renderPlayerTable() {
   html += `</div></div>`;
 
   // Bulk action bar
-  html += `<div id="bulkBar" class="hidden mt-4 pt-4 flex items-center gap-2" style="border-top:1px solid rgba(255,255,255,0.06);">
-    <span id="bulkCount" class="text-xs text-gray-500 mr-2">0 selected</span>
+  html += `<div id="bulkBar" class="hidden mt-4 pt-4 flex items-center gap-2" style="border-top:1px solid var(--line);">
+    <span id="bulkCount" class="text-xs text-ink3 mr-2">0 selected</span>
     <button class="btn btn-danger text-xs" data-bulk="reset">Reset Stats</button>
     <button class="btn btn-danger text-xs" data-bulk="delete">Delete</button>
     <button class="btn text-xs" data-bulk="clear-avatar">Clear Avatar</button>
@@ -367,19 +367,19 @@ function renderPlayerTable() {
 }
 
 function renderMatches(matches) {
-  let html = `<div class="card p-5 mt-5 animate-slide-up" id="matchesSection"><h2 class="text-sm font-bold text-white mb-1">Recent Matches</h2><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">Last 30 matches</p>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+  let html = `<div class="card p-5 mt-5 animate-slide-up" id="matchesSection"><h2 class="text-sm font-bold text-ink mb-1">Recent Matches</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Last 30 matches</p>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-ink3 uppercase tracking-widest" style="border-bottom:1px solid var(--line);">
       <th class="py-3 px-3 text-left">Format</th><th class="py-3 px-3 text-left">Team A</th><th class="py-3 px-3 text-left">Score</th><th class="py-3 px-3 text-left">Team B</th><th class="py-3 px-3 text-left">Winner</th><th class="py-3 px-3 text-left hidden md:table-cell">Date</th><th class="py-3 px-3 text-right"></th>
     </tr></thead><tbody>`;
   for (const m of matches) {
-    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-      <td class="py-2.5 px-3 text-[10px] font-bold text-gray-500">${m.format}</td>
-      <td class="py-2.5 px-3 text-sm text-white">${m.team_a_name}</td>
-      <td class="py-2.5 px-3 text-sm font-bold" style="color:${m.winner_name===m.team_a_name?'#00e676':'#ef4444'}">${m.score_a} : ${m.score_b}</td>
-      <td class="py-2.5 px-3 text-sm text-white">${m.team_b_name}</td>
-      <td class="py-2.5 px-3 text-[10px] font-semibold" style="color:${m.winner_name==='Draw'?'#666':'#00e676'}">${m.winner_name||'—'}</td>
-      <td class="py-2.5 px-3 text-xs text-gray-600 hidden md:table-cell">${new Date(m.played_at).toLocaleDateString()}</td>
-      <td class="py-2.5 px-3 text-right"><div class="flex gap-1 justify-end"><button class="match-edit text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:rgba(232,25,125,0.1);color:#e8197d;border:none;" data-id="${m.id}" data-score-a="${m.score_a}" data-score-b="${m.score_b}" data-winner="${m.winner_name===m.team_a_name?'a':'b'}" data-teama="${window.esc(m.team_a_name)}" data-teamb="${window.esc(m.team_b_name)}">Edit</button><button class="match-delete text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:#7f1d1d;color:#fff;border:none;" data-id="${m.id}">Remove</button></div></td>
+    html += `<tr style="border-bottom:1px solid var(--line);">
+      <td class="py-2.5 px-3 text-[10px] font-bold text-ink3">${m.format}</td>
+      <td class="py-2.5 px-3 text-sm text-ink">${m.team_a_name}</td>
+      <td class="py-2.5 px-3 text-sm font-bold" style="color:${m.winner_name===m.team_a_name?'var(--win)':'var(--loss)'}">${m.score_a} : ${m.score_b}</td>
+      <td class="py-2.5 px-3 text-sm text-ink">${m.team_b_name}</td>
+      <td class="py-2.5 px-3 text-[10px] font-semibold" style="color:${m.winner_name==='Draw'?'var(--ink-3)':'var(--win)'}">${m.winner_name||'—'}</td>
+      <td class="py-2.5 px-3 text-xs text-ink3 hidden md:table-cell">${new Date(m.played_at).toLocaleDateString()}</td>
+      <td class="py-2.5 px-3 text-right"><div class="flex gap-1 justify-end"><button class="match-edit text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:var(--signal-soft);color:var(--signal);border:none;" data-id="${m.id}" data-score-a="${m.score_a}" data-score-b="${m.score_b}" data-winner="${m.winner_name===m.team_a_name?'a':'b'}" data-teama="${window.esc(m.team_a_name)}" data-teamb="${window.esc(m.team_b_name)}">Edit</button><button class="match-delete text-xs font-bold px-3 py-2 rounded-lg transition-all" style="background:var(--loss);color:#fff;border:none;" data-id="${m.id}">Remove</button></div></td>
     </tr>`;
   }
   html += '</tbody></table></div></div>';
@@ -417,23 +417,23 @@ function wireMatchEdit() {
 
 function renderAuditLog(log) {
   let html = `<div class="card p-5 mt-5 animate-slide-up" id="auditSection"><div class="flex items-center justify-between mb-1">
-    <h2 class="text-sm font-bold text-white">Audit Log</h2>
+    <h2 class="text-sm font-bold text-ink">Audit Log</h2>
     <button id="clearAuditBtn" class="btn btn-danger text-xs">Clear Log</button>
-  </div><p class="text-[10px] text-gray-600 uppercase tracking-widest mb-4">All admin actions recorded</p>`;
-  if (!log.length) { html += '<p class="text-xs text-gray-600">No entries yet.</p>'; }
+  </div><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">All admin actions recorded</p>`;
+  if (!log.length) { html += '<p class="text-xs text-ink3">No entries yet.</p>'; }
   else {
-    html += `<div class="overflow-x-auto max-h-80 overflow-y-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+    html += `<div class="overflow-x-auto max-h-80 overflow-y-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-ink3 uppercase tracking-widest" style="border-bottom:1px solid var(--line);">
       <th class="py-2 px-3 text-left">Time</th><th class="py-2 px-3 text-left">Admin</th><th class="py-2 px-3 text-left">Action</th><th class="py-2 px-3 text-left hidden sm:table-cell">Target</th><th class="py-2 px-3 text-left hidden md:table-cell">Details</th>
     </tr></thead><tbody>`;
     for (const e of log) {
       const date = new Date(e.created_at);
       const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-      html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-        <td class="py-1.5 px-3 text-[10px] text-gray-600 whitespace-nowrap">${timeStr}</td>
-        <td class="py-1.5 px-3 text-xs text-white">${e.admin_name}</td>
-        <td class="py-1.5 px-3 text-xs" style="color:${e.action.includes('banned')||e.action.includes('delete')?'#ef4444':e.action.includes('granted')?'#00e676':'#ccc'}">${e.action}</td>
-        <td class="py-1.5 px-3 text-xs text-gray-400 hidden sm:table-cell">${window.esc(e.target_name)||'—'}</td>
-        <td class="py-1.5 px-3 text-[10px] text-gray-600 hidden md:table-cell max-w-[200px] truncate">${window.esc(e.details)||'—'}</td>
+      html += `<tr style="border-bottom:1px solid var(--line);">
+        <td class="py-1.5 px-3 text-[10px] text-ink3 whitespace-nowrap">${timeStr}</td>
+        <td class="py-1.5 px-3 text-xs text-ink">${e.admin_name}</td>
+        <td class="py-1.5 px-3 text-xs" style="color:${e.action.includes('banned')||e.action.includes('delete')?'var(--loss)':e.action.includes('granted')?'var(--win)':'var(--ink-2)'}">${e.action}</td>
+        <td class="py-1.5 px-3 text-xs text-ink2 hidden sm:table-cell">${window.esc(e.target_name)||'—'}</td>
+        <td class="py-1.5 px-3 text-[10px] text-ink3 hidden md:table-cell max-w-[200px] truncate">${window.esc(e.details)||'—'}</td>
       </tr>`;
     }
     html += '</tbody></table></div>';
@@ -478,15 +478,15 @@ function wireGlobal() {
       const canStart = t.status === 'pending';
       const canAdd = t.status === 'pending';
       const canComplete = t.status === 'active';
-      return `<div class="flex items-center justify-between text-xs card px-3 py-2" style="border-color:rgba(255,255,255,0.04);">
-          <span class="text-white" style="min-width:120px;">${window.esc(t.name)}</span>
+      return `<div class="flex items-center justify-between text-xs card px-3 py-2" style="border-color:var(--line);">
+          <span class="text-ink" style="min-width:120px;">${window.esc(t.name)}</span>
         <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-gray-600">${t.status}</span>
-          ${canAdd ? `<button class="btn text-xs px-3 py-2 add-players-btn" data-id="${t.id}" style="color:#ffb700;border-color:rgba(255,183,0,0.3);">+Players</button>` : ''}
-          ${canStart ? `<button class="btn text-xs px-3 py-2 start-tmt-btn" data-id="${t.id}" style="color:#00e676;border-color:rgba(0,230,118,0.3);">Start</button>` : ''}
-          ${canComplete ? `<button class="btn text-xs px-3 py-2 complete-tmt-btn" data-id="${t.id}" style="color:#e8197d;border-color:rgba(232,25,125,0.3);">Complete</button>` : ''}
+          <span class="text-ink3">${t.status}</span>
+          ${canAdd ? `<button class="btn text-xs px-3 py-2 add-players-btn" data-id="${t.id}" style="color:var(--warn);border-color:color-mix(in srgb, var(--warn) 30%, transparent);">+Players</button>` : ''}
+          ${canStart ? `<button class="btn text-xs px-3 py-2 start-tmt-btn" data-id="${t.id}" style="color:var(--win);border-color:color-mix(in srgb, var(--win) 30%, transparent);">Start</button>` : ''}
+          ${canComplete ? `<button class="btn text-xs px-3 py-2 complete-tmt-btn" data-id="${t.id}" style="color:var(--signal);border-color:var(--signal-line);">Complete</button>` : ''}
           <a href="/tournament/${t.id}" class="btn text-xs px-3 py-2">View</a>
-          <button class="btn text-xs px-3 py-2 delete-tmt-btn" data-id="${t.id}" style="color:#ef4444;border-color:rgba(239,68,68,0.3);">X</button>
+          <button class="btn text-xs px-3 py-2 delete-tmt-btn" data-id="${t.id}" style="color:var(--loss);border-color:color-mix(in srgb, var(--loss) 35%, transparent);">X</button>
         </div>
       </div>`;
     }).join('');
@@ -544,7 +544,7 @@ function wireGlobal() {
         const d = await r.json();
         const results = $('importResults');
         results.classList.remove('hidden');
-        results.innerHTML = `<span style="color:#00e676;">Created: ${d.created}</span> · <span style="color:#ffb700;">Skipped: ${d.skipped}</span>${d.errors.length ? ' · <span style="color:#ef4444;">Errors: '+d.errors.join(', ')+'</span>' : ''}`;
+        results.innerHTML = `<span style="color:var(--win);">Created: ${d.created}</span> · <span style="color:var(--warn);">Skipped: ${d.skipped}</span>${d.errors.length ? ' · <span style="color:var(--loss);">Errors: '+d.errors.join(', ')+'</span>' : ''}`;
         toast(`Import complete: ${d.created} created, ${d.skipped} skipped.`,'success');
         importFile.value = '';
         location.reload();
@@ -571,10 +571,10 @@ function wirePlayerTable() {
   document.querySelectorAll('.delete-btn').forEach(btn => {
     let confirm = false;
     btn.addEventListener('click', async () => {
-      if (!confirm) { confirm = true; btn.textContent = 'Confirm?'; btn.style.background = '#dc2626'; setTimeout(() => { if (confirm) { confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; } }, 4000); return; }
+      if (!confirm) { confirm = true; btn.textContent = 'Confirm?'; btn.style.background = 'var(--loss)'; setTimeout(() => { if (confirm) { confirm = false; btn.textContent = 'Delete'; btn.style.background = 'var(--loss)'; } }, 4000); return; }
       const id = btn.dataset.id;
       const r = await window.apiFetch('/api/players/'+id,{method:'DELETE'});
-      if (r.ok) { toast('Deleted.','success'); location.reload(); } else { toast('Failed.','error'); confirm = false; btn.textContent = 'Delete'; btn.style.background = '#7f1d1d'; }
+      if (r.ok) { toast('Deleted.','success'); location.reload(); } else { toast('Failed.','error'); confirm = false; btn.textContent = 'Delete'; btn.style.background = 'var(--loss)'; }
     });
   });
   document.querySelectorAll('.admin-toggle').forEach(btn => btn.addEventListener('click', async () => {
@@ -711,7 +711,7 @@ function wireProfileClicks() {
 
 async function openProfilePanel(playerId) {
   const panel = $('profilePanel'), backdrop = $('profileBackdrop');
-  panel.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm py-20">Loading...</div>';
+  panel.innerHTML = '<div class="p-6 text-center text-ink3 text-sm py-20">Loading...</div>';
   panel.classList.add('open'); backdrop.classList.add('open');
 
   try {
@@ -730,40 +730,40 @@ async function openProfilePanel(playerId) {
     function isPlayerInTeam(pn, tn) { return tn ? tn.split(' + ').some(n => n.trim() === pn) : false; }
     const playerMatches = matchesRes.filter(m => isPlayerInTeam(pd.username, m.team_a_name) || isPlayerInTeam(pd.username, m.team_b_name));
 
-    let html = `<div class="p-6" style="border-bottom:1px solid rgba(255,255,255,0.06);">
+    let html = `<div class="p-6" style="border-bottom:1px solid var(--line);">
       <div class="flex items-center gap-4 mb-4">
-        ${pd.avatar_url ? `<img src="${window.esc(pd.avatar_url)}" class="w-16 h-16 rounded-full object-cover" style="border:2px solid ${rank[2]}">` : `<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold" style="background:#1c1c1f;color:#333;border:2px solid ${rank[2]};">${window.esc(pd.username[0]).toUpperCase()}</div>`}
-        <div><h2 class="text-lg font-bold text-white">${window.esc(pd.username)}</h2><span class="text-xs font-semibold" style="color:${rank[2]}">${window.esc(rank[0])}</span></div>
+        ${pd.avatar_url ? `<img src="${window.esc(pd.avatar_url)}" class="w-16 h-16 rounded-full object-cover" style="border:2px solid ${rank[2]}">` : `<div class="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold" style="background:var(--panel-2);color:var(--ink-3);border:2px solid ${rank[2]};">${window.esc(pd.username[0]).toUpperCase()}</div>`}
+        <div><h2 class="text-lg font-bold text-ink">${window.esc(pd.username)}</h2><span class="text-xs font-semibold rank-elo" style="--rank-color:${rank[2]}">${window.esc(rank[0])}</span></div>
       </div>
       <div class="grid grid-cols-3 gap-2 mb-4">
-        <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:${rank[2]}">${rating.elo}</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">ELO</div></div>
-        <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:#00e676">${winRate}%</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">Win Rate</div></div>
-        <div class="card p-3 text-center"><div class="text-sm font-extrabold text-white">${rating.matches_played}</div><div class="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">Matches</div></div>
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold rank-elo" style="--rank-color:${rank[2]}">${rating.elo}</div><div class="text-[9px] text-ink3 uppercase tracking-widest mt-0.5">ELO</div></div>
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold" style="color:var(--win)">${winRate}%</div><div class="text-[9px] text-ink3 uppercase tracking-widest mt-0.5">Win Rate</div></div>
+        <div class="card p-3 text-center"><div class="text-sm font-extrabold text-ink">${rating.matches_played}</div><div class="text-[9px] text-ink3 uppercase tracking-widest mt-0.5">Matches</div></div>
       </div>
-      <div class="text-[10px] text-gray-600">Joined ${new Date(pd.created_at).toLocaleDateString()}</div>
+      <div class="text-[10px] text-ink3">Joined ${new Date(pd.created_at).toLocaleDateString()}</div>
     </div>`;
 
     if (playerMatches.length) {
-      html += `<div class="p-4"><h3 class="text-xs font-bold text-white mb-3 uppercase tracking-widest">Recent Matches</h3>`;
+      html += `<div class="p-4"><h3 class="text-xs font-bold text-ink mb-3 uppercase tracking-widest">Recent Matches</h3>`;
       for (const m of playerMatches.slice(0, 20)) {
         const isTeamA = isPlayerInTeam(pd.username, m.team_a_name);
         const won = (isTeamA && m.winner_name === m.team_a_name) || (!isTeamA && m.winner_name === m.team_b_name) || isPlayerInTeam(pd.username, m.winner_name);
         const score = isTeamA ? `${m.score_a} : ${m.score_b}` : `${m.score_b} : ${m.score_a}`;
-        html += `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid rgba(255,255,255,0.04);">
-          <span class="text-xs" style="color:${won?'#00e676':'#ef4444'}">${won?'W':'L'}</span>
-          <span class="text-xs text-gray-400">${m.format}</span>
-          <span class="text-xs font-bold text-white">${score}</span>
-          <span class="text-[10px] text-gray-600">${new Date(m.played_at).toLocaleDateString()}</span>
+        html += `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--line);">
+          <span class="text-xs" style="color:${won?'var(--win)':'var(--loss)'}">${won?'W':'L'}</span>
+          <span class="text-xs text-ink2">${m.format}</span>
+          <span class="text-xs font-bold text-ink">${score}</span>
+          <span class="text-[10px] text-ink3">${new Date(m.played_at).toLocaleDateString()}</span>
         </div>`;
       }
       html += `</div>`;
     } else {
-      html += `<div class="p-4 text-center text-xs text-gray-600">No matches yet.</div>`;
+      html += `<div class="p-4 text-center text-xs text-ink3">No matches yet.</div>`;
     }
 
     const notes = adminPd.notes || '';
-    html += `<div class="p-4" style="border-top:1px solid rgba(255,255,255,0.06);"><h3 class="text-xs font-bold text-white mb-3 uppercase tracking-widest">Admin Notes</h3>
-      <textarea id="notesTextarea" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-white resize-y" style="border-color:rgba(255,255,255,0.1);min-height:80px;" placeholder="Private notes...">${window.esc(notes)}</textarea>
+    html += `<div class="p-4" style="border-top:1px solid var(--line);"><h3 class="text-xs font-bold text-ink mb-3 uppercase tracking-widest">Admin Notes</h3>
+      <textarea id="notesTextarea" class="w-full bg-transparent border rounded-lg px-4 py-3 text-sm text-ink resize-y" style="border-color:var(--line-strong);min-height:80px;" placeholder="Private notes...">${window.esc(notes)}</textarea>
       <button id="saveNotesBtn" class="btn btn-pink text-xs mt-2">Save Notes</button>
     </div>`;
 
@@ -775,7 +775,7 @@ async function openProfilePanel(playerId) {
       if (r.ok) { toast('Notes saved.','success'); } else { toast('Failed to save notes.','error'); }
     });
   } catch {
-    panel.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">Failed to load.</div>';
+    panel.innerHTML = '<div class="p-6 text-center text-loss text-sm">Failed to load.</div>';
   }
 }
 

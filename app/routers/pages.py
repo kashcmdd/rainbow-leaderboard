@@ -9,10 +9,12 @@ from app.database import get_db
 from app.deps import require_user
 from app.models import Player, Player as PlayerModel
 from app.csrf import csrf_input
+from app.config import settings
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 templates.env.globals["csrf_input"] = csrf_input
+templates.env.globals["site_name"] = settings.site_name
 
 
 @router.get("/", response_class=HTMLResponse)

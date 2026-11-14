@@ -18,6 +18,7 @@ class Settings(BaseSettings):
         "4v4": 0.6,
         "5v5": 0.5,
     }
+    site_name: str = "clukzersLB"
     discord_client_id: str = ""
     discord_client_secret: str = ""
     discord_redirect_uri: str = ""

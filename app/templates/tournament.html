@@ -1,19 +1,17 @@
 {% extends "base.html" %}
+{% block title %}Tournament — {{ site_name }}{% endblock %}
 {% block content %}
-<style>
-.bracket-round { min-width:180px; }
-.bracket-match { background:#1c1c1f; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 12px; margin-bottom:6px; }
-.bracket-match:hover { border-color:rgba(232,25,125,0.2); }
-.bracket-match.won { border-left:3px solid #00e676; }
-.bracket-match.lost { border-left:3px solid #ef4444; }
-.tbd { color:#555; font-style:italic; }
-</style>
 
-<h1 class="text-2xl font-extrabold text-white mb-2" id="tournamentName">Tournament</h1>
-<p class="text-xs text-gray-500 uppercase tracking-widest mb-6" id="tournamentMeta"></p>
+<div class="page-head">
+    <div>
+        <p class="eyebrow">Bracket</p>
+        <h1 class="display text-[34px] leading-none sm:text-[40px]" id="tournamentName">Tournament</h1>
+        <p class="micro mt-2" id="tournamentMeta"></p>
+    </div>
+</div>
 
 <div id="tournamentContent">
-  <div class="card p-8 animate-pulse"><div class="h-5 bg-white/5 rounded w-3/4 mb-3"></div></div>
+    <div class="panel p-6"><div class="skeleton h-6 w-3/4 mb-3"></div><div class="skeleton h-32"></div></div>
 </div>
 
 <script>
@@ -25,48 +23,50 @@ async function loadTournament() {
   document.getElementById('tournamentName').textContent = t.name;
   document.getElementById('tournamentMeta').textContent = `${t.status.toUpperCase()} · ${t.format} · ${t.participants.length} players`;
 
-  let html = `<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-    <div class="card p-4"><h3 class="text-xs font-bold text-white uppercase tracking-widest mb-3">Participants</h3>`;
+  let html = `<div class="grid grid-cols-1 gap-4 lg:grid-cols-3">`;
+
+  // Participants
+  html += `<div class="panel"><div class="section-head px-4 pt-3 mb-0"><h3 class="stat-label mb-0">Participants</h3><span class="micro">${t.participants.length}</span></div><div class="px-4 py-2">`;
   for (const p of t.participants) {
-    html += `<div class="flex items-center justify-between py-1.5" style="border-bottom:1px solid rgba(255,255,255,0.04);">
-      <span class="text-sm text-white">#${p.seed} ${p.username}</span>
-      <span class="text-[10px] font-semibold" style="color:${p.rank_color}">${p.rank_title}</span>
+    html += `<div class="flex items-center justify-between gap-2 border-b py-2 last:border-b-0" style="border-color:var(--line)">
+      <span class="truncate text-[13px]"><span class="num mr-2 text-[11px] text-ink3">${String(p.seed).padStart(2, '0')}</span>${p.username}</span>
+      <span class="rank-chip shrink-0" style="--rank-color:${p.rank_color}">${p.rank_title}</span>
     </div>`;
   }
-  html += `</div>`;
+  html += `</div></div>`;
 
   // Bracket
   const maxRound = t.matches.length ? Math.max(...t.matches.map(m => m.round)) : 0;
-  const roundNames = ['','Quarter-Finals','Semi-Finals','Final','Champion'];
-  html += `<div class="lg:col-span-2 card p-4"><h3 class="text-xs font-bold text-white uppercase tracking-widest mb-3">Bracket</h3>`;
+  const roundNames = ['', 'Quarter-Finals', 'Semi-Finals', 'Final', 'Champion'];
+  html += `<div class="panel lg:col-span-2"><div class="section-head px-4 pt-3 mb-0"><h3 class="stat-label mb-0">Bracket</h3></div><div class="p-4">`;
   if (t.status === 'pending') {
-    html += `<p class="text-xs text-gray-600">Tournament has not started yet.</p>`;
+    html += `<p class="py-6 text-center text-xs text-ink3">Tournament has not started yet.</p>`;
   } else {
-    html += `<div class="flex gap-4 overflow-x-auto pb-4">`;
+    html += `<div class="flex gap-4 overflow-x-auto pb-2">`;
     for (let r = 1; r <= maxRound; r++) {
-      const roundMatches = t.matches.filter(m => m.round === r).sort((a,b) => a.position - b.position);
+      const roundMatches = t.matches.filter(m => m.round === r).sort((a, b) => a.position - b.position);
       const rname = roundNames[r] || `Round ${r}`;
-      html += `<div class="bracket-round"><div class="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">${rname}</div>`;
+      html += `<div class="bracket-round"><div class="micro mb-2">${rname}</div>`;
       for (const m of roundMatches) {
         const hasPlayers = m.team_a_name !== 'TBD' && m.team_b_name !== 'TBD';
         const wonA = m.winner_name === m.team_a_name;
         const wonB = m.winner_name === m.team_b_name;
         const played = m.played;
-        html += `<div class="bracket-match ${played?(wonA||wonB?'won':'lost'):''}">
+        html += `<div class="bracket-match ${played ? (wonA || wonB ? 'won' : 'lost') : ''}">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-xs ${wonA?'font-bold text-white':'text-gray-400'}">${esc(m.team_a_name||'TBD')}</span>
-            ${played ? `<span class="text-xs font-bold" style="color:${wonA?'#00e676':'#666'}">${m.score_a}</span>` : ''}
+            <span class="truncate text-[12px] ${wonA ? 'font-semibold text-ink' : 'text-ink2'}">${esc(m.team_a_name || 'TBD')}</span>
+            ${played ? `<span class="num text-[12px] font-semibold" style="color:${wonA ? 'var(--win)' : 'var(--ink-3)'}">${m.score_a}</span>` : ''}
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-xs ${wonB?'font-bold text-white':'text-gray-400'}">${esc(m.team_b_name||'TBD')}</span>
-            ${played ? `<span class="text-xs font-bold" style="color:${wonB?'#00e676':'#666'}">${m.score_b}</span>` : ''}
+          <div class="mt-1 flex items-center justify-between gap-3">
+            <span class="truncate text-[12px] ${wonB ? 'font-semibold text-ink' : 'text-ink2'}">${esc(m.team_b_name || 'TBD')}</span>
+            ${played ? `<span class="num text-[12px] font-semibold" style="color:${wonB ? 'var(--win)' : 'var(--ink-3)'}">${m.score_b}</span>` : ''}
           </div>
           ${IS_ADMIN && hasPlayers && !played && t.status === 'active' ? `
-            <div class="flex gap-1 mt-2 pt-2" style="border-top:1px solid rgba(255,255,255,0.04);">
-              <input id="sca_${m.id}" type="number" min="0" value="0" class="w-14 sm:w-10 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="A">
-              <span class="text-[10px] text-gray-600 self-center">-</span>
-              <input id="scb_${m.id}" type="number" min="0" value="0" class="w-14 sm:w-10 bg-transparent border border-white/10 rounded text-xs text-white text-center py-1.5" placeholder="B">
-              <button class="report-tmt-match btn text-xs px-3 py-1.5" data-id="${m.id}" style="color:#e8197d;border-color:rgba(232,25,125,0.3);">Report</button>
+            <div class="mt-2 flex items-center gap-1.5 border-t pt-2" style="border-color:var(--line)">
+              <input id="sca_${m.id}" type="number" min="0" value="0" class="field !w-12 !px-1 !py-1 text-center text-[11px]" aria-label="Score A">
+              <span class="micro">/</span>
+              <input id="scb_${m.id}" type="number" min="0" value="0" class="field !w-12 !px-1 !py-1 text-center text-[11px]" aria-label="Score B">
+              <button class="report-tmt-match btn btn-pink btn-sm ml-auto px-2 py-1" data-id="${m.id}">Report</button>
             </div>` : ''}
         </div>`;
       }
@@ -74,33 +74,34 @@ async function loadTournament() {
     }
     html += `</div>`;
   }
-  html += `</div></div>`;
+  html += `</div></div></div>`;
 
   document.getElementById('tournamentContent').innerHTML = html;
 
-  // Wire report buttons
   document.querySelectorAll('.report-tmt-match').forEach(btn => btn.addEventListener('click', async () => {
     const mid = btn.dataset.id;
-    const sca = parseInt(document.getElementById('sca_'+mid).value) || 0;
-    const scb = parseInt(document.getElementById('scb_'+mid).value) || 0;
-    if (sca === scb) { toast('Scores cannot be tied.','error'); return; }
+    const sca = parseInt(document.getElementById('sca_' + mid).value) || 0;
+    const scb = parseInt(document.getElementById('scb_' + mid).value) || 0;
+    if (sca === scb) { toast('Scores cannot be tied.', 'error'); return; }
     const r = await window.apiFetch(`/api/tournaments/${TMT_ID}/report-match`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({match_id: mid, score_a: sca, score_b: scb})
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match_id: mid, score_a: sca, score_b: scb })
     });
-    if (r.ok) { toast('Match reported!','success'); loadTournament(); }
-    else { const e = await r.json(); toast(e.detail||'Failed.','error'); }
+    if (r.ok) { toast('Match reported.', 'success'); loadTournament(); }
+    else { const e = await r.json(); toast(e.detail || 'Failed.', 'error'); }
   }));
 }
 
-function esc(s) { const d=document.createElement('div'); d.textContent=s||'TBD'; return d.innerHTML; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s || 'TBD'; return d.innerHTML; }
+
 function toast(msg, type) {
   const el = document.createElement('div');
-  el.className = 'fixed bottom-6 right-6 z-50 card px-5 py-3 text-sm shadow-xl border transition-all';
-  el.style.cssText = 'border-color:'+(type==='error'?'#ef4444':type==='success'?'#00e676':'rgba(255,255,255,0.1)')+';background:#1c1c1f;color:#fff;';
+  el.className = 'fixed bottom-6 right-6 z-50 panel px-5 py-3 text-sm';
+  el.style.borderColor = type === 'error' ? 'var(--loss)' : type === 'success' ? 'var(--win)' : 'var(--line-strong)';
+  el.style.color = type === 'error' ? 'var(--loss)' : type === 'success' ? 'var(--win)' : 'var(--ink)';
   el.textContent = msg;
   document.body.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 
 loadTournament();
