@@ -16,6 +16,7 @@ from app.config import settings
 from app.csrf import csrf_input
 from app.database import get_db
 from app.models import Player, Rating
+from app.ratelimit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -42,7 +43,7 @@ async def login(request: Request):
 
 
 @router.get("/discord")
-async def discord_login(request: Request):
+async def discord_login(request: Request, _rl: None = Depends(rate_limit(20, 60))):
     state = secrets.token_urlsafe(32)
     request.session["oauth_state"] = state
     params = {
@@ -56,7 +57,7 @@ async def discord_login(request: Request):
 
 
 @router.get("/callback")
-async def callback(request: Request, code: str, state: str = None, db: AsyncSession = Depends(get_db)):
+async def callback(request: Request, code: str, state: str = None, db: AsyncSession = Depends(get_db), _rl: None = Depends(rate_limit(30, 60))):
     expected = request.session.pop("oauth_state", None)
     if not expected or not state or state != expected:
         return RedirectResponse(url="/auth/login?error=failed", status_code=302)

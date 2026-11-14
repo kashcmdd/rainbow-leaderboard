@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.csrf import csrf_protect
 from app.database import get_db
-from app.deps import require_admin
+from app.deps import require_admin, require_user
 from app.models import Match, Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
 from app.ranks import get_rank
 from app.schemas import AvatarSet, PlayerCreate, PlayerOut
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/players", tags=["players"])
 
 
 @router.post("", response_model=PlayerOut)
-async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db), _: None = Depends(csrf_protect)):
+async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_user), __: None = Depends(csrf_protect)):
     existing = await db.execute(select(Player).where(Player.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Player already exists")
