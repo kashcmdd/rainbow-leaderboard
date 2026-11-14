@@ -71,10 +71,13 @@ async function loadStats() {
             const icon = a.type === 'match'
                 ? '<span class="signal-dot mt-1.5"></span>'
                 : '<span class="num mt-0.5 text-[12px] leading-none" style="color:var(--win)">+</span>';
+            const label = a.type === 'match' && a.match_id
+                ? `<a href="/match/${a.match_id}" class="transition-colors hover:text-signal">${window.esc(a.message)}</a>`
+                : window.esc(a.message);
             return `<div class="flex items-start gap-3 border-b px-4 py-3 last:border-b-0" style="border-color:var(--line)">
                 ${icon}
                 <div class="min-w-0 flex-1">
-                    <div class="truncate text-[13px] text-ink">${window.esc(a.message)}</div>
+                    <div class="truncate text-[13px] text-ink">${label}</div>
                     ${a.detail ? `<div class="mt-0.5 text-[11px] text-ink3">${window.esc(a.detail)}</div>` : ''}
                 </div>
                 <div class="micro whitespace-nowrap pt-0.5">${window.esc(a.time_ago)}</div>

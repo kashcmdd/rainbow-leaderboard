@@ -47,8 +47,12 @@
                     <input type="number" id="score_b" name="score_b" min="0" required class="field">
                 </div>
             </div>
-            <button type="submit" class="btn btn-pink w-full py-2.5">Submit match</button>
+            <div class="flex flex-col gap-2 sm:flex-row">
+                <button type="button" id="previewBtn" class="btn w-full py-2.5 sm:w-1/2">Preview ELO</button>
+                <button type="submit" class="btn btn-pink w-full py-2.5 sm:w-1/2">Submit match</button>
+            </div>
         </form>
+        <div id="preview" class="mt-4 hidden" role="status" aria-live="polite"></div>
         <div id="result" class="mt-4 hidden" role="status" aria-live="polite"></div>
     </div>
 </div>
@@ -99,25 +103,72 @@ function setupTeam(team) {
 
 const teamA = setupTeam('A'), teamB = setupTeam('B');
 
+function readScores() {
+    return {
+        format: document.getElementById('formatSelect').value,
+        score_a: parseInt(document.querySelector('[name="score_a"]').value),
+        score_b: parseInt(document.querySelector('[name="score_b"]').value),
+    };
+}
+
+function validationError(score_a, score_b) {
+    if (isNaN(score_a) || isNaN(score_b) || score_a < 0 || score_b < 0) return 'Please enter valid scores for both teams.';
+    if (score_a === score_b) return 'Scores cannot be tied. There must be a winner.';
+    if (!teamA.selected.length || !teamB.selected.length) return 'Each team needs at least one player.';
+    return null;
+}
+
+function submissionBody(format, score_a, score_b) {
+    return {
+        format,
+        team_a_player_names: [...teamA.selected],
+        team_b_player_names: [...teamB.selected],
+        score_a,
+        score_b,
+    };
+}
+
+document.getElementById('previewBtn').addEventListener('click', async () => {
+    const { format, score_a, score_b } = readScores();
+    const problem = validationError(score_a, score_b);
+    if (problem) { showResult(problem, 'error'); return; }
+
+    const preview = document.getElementById('preview');
+    preview.classList.remove('hidden');
+    preview.className = 'panel-2 mt-4 p-4';
+    preview.innerHTML = '<div class="micro">Calculating…</div>';
+
+    const res = await window.apiFetch('/api/matches/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submissionBody(format, score_a, score_b)),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        preview.className = 'alert alert-error mt-4';
+        preview.textContent = err.detail || 'Could not preview this match.';
+        return;
+    }
+    const d = await res.json();
+    if (d.duplicate) {
+        preview.className = 'alert alert-error mt-4';
+        preview.innerHTML = `This looks like a duplicate. <a class="underline" href="/match/${d.duplicate_match_id}">View the existing match</a>.`;
+        return;
+    }
+    preview.className = 'panel-2 mt-4 p-4';
+    preview.innerHTML = `<div class="flex items-center justify-between gap-4">
+        <div><div class="micro">Winner</div><div class="mt-1 text-sm font-semibold">${window.esc(d.winner === 'team_a' ? d.team_a : d.team_b)}</div></div>
+        <div class="text-right"><div class="micro">ELO swing</div>
+        <div class="num mt-1 text-sm"><span style="color:var(--win)">+${d.elo_deltas.winner_delta}</span> <span class="text-ink3">/</span> <span style="color:var(--loss)">${d.elo_deltas.loser_delta}</span></div></div>
+    </div>`;
+});
+
 document.getElementById('matchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const format = document.getElementById('formatSelect').value;
-    const score_a = parseInt(document.querySelector('[name="score_a"]').value);
-    const score_b = parseInt(document.querySelector('[name="score_b"]').value);
+    const { format, score_a, score_b } = readScores();
     const resultDiv = document.getElementById('result');
 
-    if (isNaN(score_a) || isNaN(score_b) || score_a < 0 || score_b < 0) {
-        showResult('Please enter valid scores for both teams.', 'error');
-        return;
-    }
-    if (score_a === score_b) {
-        showResult('Scores cannot be tied. There must be a winner.', 'error');
-        return;
-    }
-    if (!teamA.selected.length || !teamB.selected.length) {
-        showResult('Each team needs at least one player.', 'error');
-        return;
-    }
+    const problem = validationError(score_a, score_b);
+    if (problem) { showResult(problem, 'error'); return; }
 
     resultDiv.classList.add('hidden');
     const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -128,7 +179,7 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
     try {
         const res = await window.apiFetch('/api/matches', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ format, team_a_player_names: [...teamA.selected], team_b_player_names: [...teamB.selected], score_a, score_b })
+            body: JSON.stringify(submissionBody(format, score_a, score_b))
         });
         if (res.ok) {
             const d = await res.json();

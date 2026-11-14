@@ -35,6 +35,18 @@
   </div>
 </div>
 
+<div id="textPromptModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+  <div class="card mx-4 w-full max-w-md p-6">
+    <h3 id="textPromptTitle" class="mb-2 text-lg font-bold text-ink">Add players</h3>
+    <p class="mb-3 text-xs text-ink3">One username per line, or comma separated.</p>
+    <textarea id="textPromptInput" rows="6" class="field" placeholder="Vanta&#10;Kestrel"></textarea>
+    <div class="mt-4 flex justify-end gap-2">
+      <button id="textPromptCancel" class="btn text-xs">Cancel</button>
+      <button id="textPromptOk" class="btn btn-pink text-xs">Add players</button>
+    </div>
+  </div>
+</div>
+
 <div id="eloModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
     <h3 class="text-lg font-bold text-ink mb-1" id="eloModalTitle">Adjust ELO</h3>
@@ -133,6 +145,32 @@ document.getElementById('modalCancel').addEventListener('click', () => { documen
 document.getElementById('modalConfirm').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalResolve) modalResolve(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalReject) modalReject(); }});
 
+function showTextPrompt(title) {
+  const modal = $('textPromptModal');
+  const input = $('textPromptInput');
+  $('textPromptTitle').textContent = title;
+  input.value = '';
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  return new Promise((resolve) => {
+    function close(value) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      $('textPromptOk').onclick = null;
+      $('textPromptCancel').onclick = null;
+      modal.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(value);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(null); }
+    $('textPromptOk').onclick = () => close(input.value);
+    $('textPromptCancel').onclick = () => close(null);
+    modal.onclick = (e) => { if (e.target === modal) close(null); };
+    document.addEventListener('keydown', onKey);
+    input.focus();
+  });
+}
+
 const RANKS = [
   ["Bronze I",0,"#7A4520"],["Bronze II",100,"#96541A"],["Bronze III",200,"#B8682A"],["Bronze IV",300,"#CD7F32"],["Bronze V",400,"#E09A50"],
   ["Silver I",500,"#787878"],["Silver II",600,"#909090"],["Silver III",700,"#A8A8A8"],["Silver IV",800,"#C0C0C0"],["Silver V",900,"#D8D8D8"],
@@ -220,7 +258,7 @@ function renderManagement() {
     </div>
     <div id="tmtList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
   </div>`);
-  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-ink mb-1">Season Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Close the current season to archive standings and reset ELOs</p>
+  $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-ink mb-1">Season Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Close the 1v1 season to archive its standings and reset 1v1 ELOs. Other formats keep their ratings.</p>
     <div class="flex flex-wrap gap-2">
       <input id="seasonName" class="bg-transparent border border-line rounded-lg px-3 py-2 text-xs text-ink placeholder-gray-600" placeholder="Season name..." value="Season" style="width:160px;">
       <button id="closeSeasonBtn" class="btn text-xs" style="border-color:var(--warn);color:var(--warn);">Close Season</button>
@@ -510,8 +548,7 @@ function wireGlobal() {
       const r = await window.apiFetch(`/api/tournaments/${id}`, {method:'DELETE'});
       if (r.ok) { toast('Deleted.','success'); loadTmtList(); } else { const e=await r.json(); toast(e.detail||'Failed.','error'); }
     } else if (btn.classList.contains('add-players-btn')) {
-      const playerNames = allPlayers.map(p => p.username).join('\n');
-      const input = prompt('Enter player usernames (comma or newline separated):');
+      const input = await showTextPrompt('Add players to tournament');
       if (!input) return;
       const names = input.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       const ids = names.map(n => { const p = allPlayers.find(p => p.username.toLowerCase() === n.toLowerCase()); return p ? p.id : null; }).filter(Boolean);

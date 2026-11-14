@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <meta name="description" content="{{ site_name }} — competitive Rainbow Six ladder with ELO ratings, match history, seasons and tournaments.">
+    <meta name="theme-color" content="#0b0d0e" id="themeColor">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
+    <meta property="og:description" content="Competitive Rainbow Six ladder with ELO ratings, match history, seasons and tournaments.">
+    <meta property="og:image" content="{{ request.base_url }}static/og.png">
+    <meta name="twitter:card" content="summary_large_image">
     <script>
         (function () {
             var theme = 'dark';
@@ -29,7 +37,7 @@
 </head>
 <body class="min-h-screen">
     {% macro nav_link(href, label, active) -%}
-    <a href="{{ href }}" class="nav-link{% if active %} is-active{% endif %}">{{ label }}</a>
+    <a href="{{ href }}" class="nav-link{% if active %} is-active{% endif %}"{% if active %} aria-current="page"{% endif %}>{{ label }}</a>
     {%- endmacro %}
     <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-panel focus:px-3 focus:py-2 focus:text-sm">Skip to content</a>
 
@@ -139,6 +147,8 @@
             var isLight = document.documentElement.dataset.theme === 'light';
             toggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
             toggle.setAttribute('title', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+            var meta = document.getElementById('themeColor');
+            if (meta) meta.setAttribute('content', isLight ? '#efede8' : '#0b0d0e');
         };
         sync();
         toggle.addEventListener('click', function () {

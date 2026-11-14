@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Team — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <p class="eyebrow">Team dossier</p>
+        <h1 class="display text-[34px] leading-none sm:text-[40px]" id="teamName">Team</h1>
+        <p class="micro mt-2" id="teamMeta">Loading…</p>
+    </div>
+    <a href="/leaderboard?tab=teams" class="btn btn-sm">Back to teams</a>
+</div>
+
+<div id="teamRoot">
+    <div class="panel p-6">
+        <div class="skeleton mb-4 h-8 w-56"></div>
+        <div class="skeleton h-20"></div>
+    </div>
+</div>
+
+<script>
+const TEAM_ID = '{{ team_id }}';
+const root = document.getElementById('teamRoot');
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+}
+
+async function loadTeam() {
+    const res = await fetch('/api/teams/' + TEAM_ID);
+    if (!res.ok) {
+        root.innerHTML = '<div class="panel p-12 text-center"><p class="mb-4 text-sm text-ink3">Team not found.</p><a href="/leaderboard?tab=teams" class="btn btn-pink">Back to teams</a></div>';
+        return;
+    }
+    const t = await res.json();
+    document.getElementById('teamName').textContent = t.name;
+    document.getElementById('teamMeta').textContent = `${t.format.toUpperCase()} · ${t.matches_played} matches · ${t.wins}W ${t.losses}L`;
+
+    const members = t.members.map(m => `
+        <a href="/player/${m.id}" class="flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0" style="border-color:var(--line)">
+            <span class="flex min-w-0 items-center gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden border text-[10px] font-semibold" style="border-color:var(--line);background:var(--panel-2);color:var(--ink-3)">
+                    ${m.avatar_url ? `<img src="${m.avatar_url}" alt="" class="h-full w-full object-cover">` : esc(m.username.charAt(0).toUpperCase())}
+                </span>
+                <span class="truncate text-[13px] font-semibold">${esc(m.username)}</span>
+            </span>
+            <span class="flex shrink-0 items-center gap-3">
+                <span class="rank-chip" style="--rank-color:${m.rank_color}">${esc(m.rank_title)}</span>
+                <span class="num rank-elo text-[13px] font-semibold" style="--rank-color:${m.rank_color}">${m.elo}</span>
+            </span>
+        </a>`).join('');
+
+    const matches = t.recent_matches.length === 0
+        ? '<div class="px-4 py-10 text-center text-xs text-ink3">No matches recorded.</div>'
+        : t.recent_matches.map(m => `
+            <a href="/match/${m.id}" class="flex items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0 hover:bg-panel2" style="border-color:var(--line)">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span class="badge ${m.result === 'win' ? 'badge-win' : 'badge-loss'}">${m.result === 'win' ? 'W' : 'L'}</span>
+                    <span class="truncate text-[13px] font-semibold">${esc(m.opponent)}</span>
+                    <span class="micro">${esc(m.format)}</span>
+                </div>
+                <div class="flex shrink-0 items-center gap-3">
+                    <span class="num text-[13px] font-semibold">${m.score_a}–${m.score_b}</span>
+                    <span class="num text-[11px]" style="color:${m.result === 'win' ? 'var(--win)' : 'var(--loss)'}">${m.elo_delta > 0 ? '+' : ''}${m.elo_delta}</span>
+                </div>
+            </a>`).join('');
+
+    root.innerHTML = `
+        <div class="panel mb-4 overflow-hidden">
+            <div class="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                <div>
+                    <div class="stat-label">Team rating</div>
+                    <div class="num rank-elo mt-1 text-[42px] font-semibold leading-none" style="--rank-color:${t.rank_color}">${t.elo}</div>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <span class="rank-chip" style="--rank-color:${t.rank_color}">${esc(t.rank_title)}</span>
+                        <span class="micro">${t.wins}W / ${t.losses}L</span>
+                        ${t.streak ? `<span class="badge ${t.streak > 0 ? 'badge-win' : 'badge-loss'}">${t.streak > 0 ? '+' : ''}${t.streak}</span>` : ''}
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-px border sm:w-72" style="border-color:var(--line);background:var(--line)">
+                    <div class="bg-panel px-4 py-3"><div class="stat-label">Played</div><div class="num mt-1 text-[15px] font-semibold">${t.matches_played}</div></div>
+                    <div class="bg-panel px-4 py-3"><div class="stat-label">Wins</div><div class="num mt-1 text-[15px] font-semibold" style="color:var(--win)">${t.wins}</div></div>
+                    <div class="bg-panel px-4 py-3"><div class="stat-label">Losses</div><div class="num mt-1 text-[15px] font-semibold" style="color:var(--loss)">${t.losses}</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="panel"><div class="section-head px-4 pt-3 mb-0"><h2 class="display text-[18px] leading-none">Roster</h2><span class="micro">${t.members.length}</span></div><div class="px-4 py-1">${members}</div></div>
+            <div class="panel lg:col-span-2"><div class="section-head px-4 pt-3 mb-0"><h2 class="display text-[18px] leading-none">Recent matches</h2><span class="micro">${t.recent_matches.length}</span></div><div>${matches}</div></div>
+        </div>`;
+}
+
+loadTeam();
+</script>
+{% endblock %}

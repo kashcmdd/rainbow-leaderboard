@@ -40,7 +40,12 @@
             <option value="Champion">Champion</option>
         </select>
     </div>
+    <div id="seasonWrap" class="hidden sm:w-48">
+        <select id="seasonFilter" class="field" aria-label="Season"></select>
+    </div>
 </div>
+
+<p id="seasonNote" class="micro mb-3 hidden" style="color:var(--signal-ink)">Archived season · final 1v1 standings</p>
 
 <div id="leaderboard">
     <div class="space-y-2" aria-hidden="true">
@@ -53,6 +58,7 @@
 <script>
 const FORMAT = new URLSearchParams(window.location.search).get('format') || '1v1';
 const RANK_FILTER = new URLSearchParams(window.location.search).get('rank') || '';
+const SEASON = new URLSearchParams(window.location.search).get('season') || '';
 let TAB = new URLSearchParams(window.location.search).get('tab') || 'players';
 
 const tabToggle = document.getElementById('tabToggle');
@@ -66,13 +72,51 @@ function syncTabs() {
 }
 syncTabs();
 
+if (SEASON) {
+    document.querySelectorAll('.seg-item[data-format]').forEach(function (el) {
+        if (el.dataset.format === '1v1') {
+            el.href = '/leaderboard?format=1v1&season=' + encodeURIComponent(SEASON);
+        }
+    });
+    tabToggle.classList.add('hidden');
+    document.getElementById('seasonNote').classList.remove('hidden');
+}
+
+async function loadSeasons() {
+    const wrap = document.getElementById('seasonWrap');
+    const select = document.getElementById('seasonFilter');
+    try {
+        const list = await (await fetch('/api/leaderboard/seasons/list')).json();
+        const archived = list.filter(s => s.status === 'archived');
+        if (!archived.length) return;
+        select.innerHTML = '<option value="">Live ladder</option>' +
+            archived.map(s => `<option value="${s.id}">${window.esc(s.name)}</option>`).join('');
+        select.value = SEASON;
+        wrap.classList.remove('hidden');
+        select.addEventListener('change', function () {
+            const params = new URLSearchParams(window.location.search);
+            if (this.value) {
+                params.set('season', this.value);
+                params.set('format', '1v1');
+            } else {
+                params.delete('season');
+            }
+            window.location.search = params.toString();
+        });
+    } catch (e) {}
+}
+loadSeasons();
+
 function pad2(n) {
     return String(n).padStart(2, '0');
 }
 
 async function loadLeaderboard() {
     const scrollY = window.scrollY;
-    const url = `/api/leaderboard/${FORMAT}${TAB === 'teams' ? '/team' : ''}${RANK_FILTER ? `?rank=${RANK_FILTER}` : ''}`;
+    const qs = new URLSearchParams();
+    if (RANK_FILTER) qs.set('rank', RANK_FILTER);
+    if (SEASON && FORMAT === '1v1' && TAB !== 'teams') qs.set('season', SEASON);
+    const url = `/api/leaderboard/${FORMAT}${TAB === 'teams' ? '/team' : ''}${qs.toString() ? '?' + qs : ''}`;
     const res = await fetch(url);
     let data = await res.json();
     data = data.map(e => {
@@ -91,19 +135,6 @@ async function loadLeaderboard() {
     }
 
     const top3 = [data[0], data[1], data[2]].filter(Boolean);
-    const rest = data.slice(3);
-
-    // Fetch avatars for all entries
-    const avatarMap = {};
-    for (const e of data) {
-        if (e._id) {
-            try {
-                const r = await fetch(TAB === 'teams' ? `/api/teams/${e._id}` : `/api/players/${e._id}`);
-                const pd = await r.json();
-                avatarMap[e._id] = (TAB === 'teams' ? pd.logo_url : pd.avatar_url) || null;
-            } catch {}
-        }
-    }
 
     let html = '';
 
@@ -114,7 +145,7 @@ async function loadLeaderboard() {
             const place = i + 1;
             const wr = (e.win_rate * 100).toFixed(0);
             const rc = e.rank_color;
-            const avatar = avatarMap[e._id];
+            const avatar = e.avatar_url;
             const initial = e.name.charAt(0).toUpperCase();
             const topRule = place === 1 ? 'var(--signal)' : 'var(--line-strong)';
             html += `
@@ -159,13 +190,13 @@ async function loadLeaderboard() {
     // ── TABLE ──
     html += `<div class="panel overflow-x-auto"><table class="data-table">
         <thead><tr>
-            <th class="w-12">#</th>
+            <th scope="col" class="w-12">#</th>
             <th>${TAB === 'teams' ? 'Team' : 'Player'}</th>
             <th>Rank</th>
-            <th class="text-right">ELO</th>
-            <th class="hidden text-right sm:table-cell">W</th>
-            <th class="hidden text-right sm:table-cell">L</th>
-            <th class="hidden text-right md:table-cell">WR</th>
+            <th scope="col" class="text-right">ELO</th>
+            <th scope="col" class="hidden text-right sm:table-cell">W</th>
+            <th scope="col" class="hidden text-right sm:table-cell">L</th>
+            <th scope="col" class="hidden text-right md:table-cell">WR</th>
         </tr></thead><tbody>`;
 
     for (const entry of data) {
@@ -177,7 +208,7 @@ async function loadLeaderboard() {
             <td>
                 <div class="flex items-center gap-3">
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden border text-[10px] font-semibold" style="border-color:var(--line);background:var(--panel-2);color:${rc};">
-                        ${avatarMap[entry._id] ? `<img src="${avatarMap[entry._id]}" alt="" class="h-full w-full object-cover">` : initial}
+                        ${entry.avatar_url ? `<img src="${entry.avatar_url}" alt="" class="h-full w-full object-cover">` : initial}
                     </div>
                     <a href="${entry._linkPrefix}${entry._id}" class="truncate text-[13px] font-semibold text-ink transition-colors hover:text-signal">${entry.name}</a>
                     ${entry.streak ? `<span class="num text-[10px]" style="color:${entry.streak > 0 ? 'var(--win)' : 'var(--loss)'}">${entry.streak > 0 ? '+' : ''}${entry.streak}</span>` : ''}

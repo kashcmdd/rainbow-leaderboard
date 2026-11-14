@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Match — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <p class="eyebrow">Match report</p>
+        <h1 class="display text-[32px] leading-none sm:text-[38px]" id="matchTitle">Match</h1>
+        <p class="micro mt-2" id="matchMeta">Loading…</p>
+    </div>
+    <a href="/leaderboard" class="btn btn-sm">Back to leaderboard</a>
+</div>
+
+<div id="matchRoot">
+    <div class="panel p-6"><div class="skeleton h-24"></div></div>
+</div>
+
+<script>
+const MATCH_ID = '{{ match_id }}';
+const root = document.getElementById('matchRoot');
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+}
+
+function side(name, players, delta, isWinner, decided) {
+    const mark = !decided ? 'badge-warn' : isWinner ? 'badge-win' : 'badge-loss';
+    const label = !decided ? 'TBD' : isWinner ? 'WIN' : 'LOSS';
+    const elo = (delta === null || delta === undefined || delta === 0)
+        ? ''
+        : `<span class="micro">ELO ${delta > 0 ? '+' : ''}${delta}</span>`;
+    return `<div class="min-w-0 text-center sm:text-left">
+        <div class="flex items-center justify-center gap-2 sm:justify-start">
+            <span class="badge ${mark}">${label}</span>
+            ${elo}
+        </div>
+        <div class="display mt-3 truncate text-[26px] leading-none sm:text-[32px]">${esc(name)}</div>
+        <div class="mt-3 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+            ${(players || []).map(p => `<span class="badge normal-case">${esc(p)}</span>`).join('') || '<span class="micro">No roster recorded</span>'}
+        </div>
+    </div>`;
+}
+
+async function loadMatch() {
+    const res = await fetch('/api/matches/' + MATCH_ID);
+    if (!res.ok) {
+        root.innerHTML = '<div class="panel p-12 text-center"><p class="mb-4 text-sm text-ink3">Match not found.</p><a href="/leaderboard" class="btn btn-pink">Back to leaderboard</a></div>';
+        return;
+    }
+    const m = await res.json();
+    const decided = !!m.winner_name;
+    const aWon = decided && m.winner_name === m.team_a_name;
+    const date = new Date(m.played_at).toLocaleString();
+    document.getElementById('matchTitle').textContent = `${m.team_a_name} vs ${m.team_b_name}`;
+    document.getElementById('matchMeta').textContent = `${m.format.toUpperCase()} · ${date}`;
+
+    root.innerHTML = `
+        <div class="panel overflow-hidden">
+            <div class="grid grid-cols-1 items-center gap-6 p-5 sm:grid-cols-[1fr_auto_1fr] sm:p-8">
+                ${side(m.team_a_name, m.team_a_players, m.elo_delta_a, aWon, decided)}
+                <div class="order-first text-center sm:order-none">
+                    <div class="num text-[48px] font-semibold leading-none sm:text-[56px]">${m.score_a}<span class="mx-2 text-ink3">:</span>${m.score_b}</div>
+                    <div class="micro mt-2">${decided ? (aWon ? esc(m.team_a_name) : esc(m.team_b_name)) + ' won' : 'Not played'}</div>
+                </div>
+                ${side(m.team_b_name, m.team_b_players, m.elo_delta_b, decided && !aWon, decided)}
+            </div>
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t px-5 py-3 sm:px-8" style="border-color:var(--line)">
+                <span class="micro">Format <span class="text-ink2">${esc(m.format)}</span></span>
+                <span class="micro">Played <span class="text-ink2">${esc(date)}</span></span>
+                ${m.tournament_id ? `<a href="/tournament/${m.tournament_id}" class="micro text-signal hover:underline">Tournament bracket</a>` : ''}
+            </div>
+        </div>`;
+}
+
+loadMatch();
+</script>
+{% endblock %}
