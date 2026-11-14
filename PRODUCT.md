@@ -11,14 +11,18 @@ Public surfaces:
 - **Home** — ladder summary and recent activity.
 - **Leaderboard** — standings by format, with player and team views.
 - **Player** — profile, ELO trend, win rate, season history, match history.
+- **Team** — roster, team rating and recent results for a repeated lineup.
+- **Match** — shareable single-match report with both sides and ELO deltas.
 - **Compare** — two-player head-to-head.
-- **Seasons** — archived standings snapshots.
+- **Seasons** — archived 1v1 standings snapshots (the season ladder is 1v1;
+  other formats keep their ratings across seasons).
 - **Tournaments** — brackets, participants, placements.
 - **Login / 404 / 500** — minimal supporting screens.
 
 Authenticated surfaces:
 
-- **Report match** — submit a result for a format.
+- **Report match** — preview the ELO swing, guard against double submits, then
+  submit a result. Reporting is rate-limited per user.
 - **Profile** — redirects to the signed-in player's page.
 - **Admin** — player management, ratings, seasons, tournaments, audit log.
 
@@ -48,7 +52,9 @@ colour rather than decoration.
 - Dark and light themes, both designed; preference persists.
 - The site name is configuration (`SITE_NAME`, default `clukzersLB`) because a
   rename is planned.
-- No new features, claims, or data changes are implied by the visual work.
+- Match results can be announced to an optional Discord webhook.
+- Admins are verified against the database/allowlist on page routes as well as
+  API routes.
 
 ## Non-goals
 

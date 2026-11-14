@@ -46,7 +46,7 @@ cd rainbow-leaderboard
 docker compose up -d --build
 ```
 
-Open `http://localhost:8000` and you're live.
+Open `http://localhost:8090` and you're live.
 
 ### Configuration
 
@@ -56,12 +56,32 @@ Copy `.env.example` to `.env` and fill in your details:
 DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
 SECRET_KEY=your-secret-key-here
 SITE_NAME=clukzersLB
+COOKIE_SECURE=false          # true behind HTTPS
+PUBLIC_BASE_URL=http://localhost:8090
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
-DISCORD_REDIRECT_URI=http://your-domain:8000/auth/callback
+DISCORD_REDIRECT_URI=http://localhost:8090/auth/callback
+DISCORD_WEBHOOK_URL=         # optional match announcements
 ```
 
 To make yourself an admin, add your Discord user ID to `admin_discord_ids` in `app/config.py`.
+
+### Migrations
+
+The schema is managed by Alembic. `alembic upgrade head` runs automatically when the
+app starts, using a Postgres advisory lock so multiple workers cannot race.
+
+For a database created before Alembic was wired (tables but no `alembic_version`),
+startup adopts it: it verifies that no model columns are missing, converts the known
+`matches.tournament_id` column to `uuid`, and stamps the baseline. If anything else
+looks stale, startup fails with the missing columns instead of guessing.
+
+```bash
+alembic upgrade head          # apply migrations
+alembic revision --autogenerate -m "change"
+```
+
+Back up the database before the first deploy against an existing volume.
 
 ## 🎨 Frontend
 
@@ -83,12 +103,17 @@ Design tokens and components are documented in `DESIGN.md`; product context is i
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/leaderboard` | View the leaderboard |
-| GET | `/players/{id}` | Player profile and stats |
-| GET | `/matches` | Match history |
+| GET | `/leaderboard` | View the leaderboard (live or archived season) |
+| GET | `/player/{id}` | Player profile and stats |
+| GET | `/team/{id}` | Team roster, rating and matches |
+| GET | `/match/{id}` | Single match report |
 | GET | `/tournaments` | Tournament listings |
-| POST | `/api/matches` | Report a match result (admin) |
-| POST | `/api/players` | Create a new player (admin) |
+| GET | `/api/leaderboard/{format}` | Standings (`?season=` for archives) |
+| GET | `/api/matches` | Match history |
+| GET | `/api/matches/{id}` | Match detail |
+| POST | `/api/matches/preview` | ELO preview without writing |
+| POST | `/api/matches` | Report a match result |
+| GET | `/healthz` | Liveness plus database check |
 
 Full API docs at `/docs` (Swagger) or `/redoc`.
 
@@ -105,8 +130,12 @@ rainbow-leaderboard/
 │   ├── models.py      # SQLAlchemy models
 │   ├── schemas.py     # Pydantic schemas
 │   ├── elo.py         # ELO rating logic
-│   └── ranks.py       # Rank definitions
+│   ├── ranks.py       # Rank definitions
+│   └── schema.py      # Alembic bootstrap / adoption
+├── alembic/           # Migrations
+├── tests/             # Pytest suite
 ├── main.py            # FastAPI app entrypoint
+├── package.json       # Tailwind build
 ├── Dockerfile         # API container build
 ├── docker-compose.yml # Service orchestration
 └── requirements.txt   # Python dependencies

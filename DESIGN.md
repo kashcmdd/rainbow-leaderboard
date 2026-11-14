@@ -73,6 +73,10 @@ Defined once in `app/static/css/input.css` (`@layer components`) and reused:
 - `.nav-link`, `.nav-stack`, `.theme-toggle`.
 - `.skeleton` (opacity pulse), `.alert` (`-error`, `-success`).
 - `.bracket-round`, `.bracket-match`, `.tbd`.
+- Season selector in the leaderboard toolbar; archived seasons show a signal
+  note and hide the Teams tab.
+- Match/team dossiers reuse the same panel, badge, meter and rank-chip pieces.
+- Report page: two-step flow with an ELO preview panel and duplicate warning.
 
 Templates must not carry raw hex colours. Page-specific `<style>` blocks are
 reserved for layout quirks, not colour.
@@ -114,3 +118,6 @@ npm run tw:watch   # during development
 ```
 
 `node_modules` is ignored by git and Docker; the built CSS is what ships.
+
+`app/static/og.png` is a rendered 1200×630 card. Regenerate it when the site
+name changes (`/tmp` helper or any HTML renderer at 1200×630).
