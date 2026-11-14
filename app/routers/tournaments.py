@@ -57,7 +57,7 @@ async def list_tournaments(db: AsyncSession = Depends(get_db)):
 
 @router.get("/{tournament_id}")
 async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -87,7 +87,7 @@ async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(ge
 
     matches = (await db.execute(
         select(Match)
-        .where(Match.tournament_id == tournament_id)
+        .where(Match.tournament_id == str(tournament_id))
         .options(
             selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
             selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
@@ -143,7 +143,7 @@ async def create_tournament(body: dict, db: AsyncSession = Depends(get_db), admi
 
 @router.post("/{tournament_id}/add-players")
 async def add_tournament_players(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -172,7 +172,7 @@ async def add_tournament_players(tournament_id: uuid.UUID, body: dict, db: Async
 
 @router.post("/{tournament_id}/start")
 async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -305,7 +305,7 @@ async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(
 
 @router.post("/{tournament_id}/report-match")
 async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -319,7 +319,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
         raise HTTPException(status_code=400, detail="match_id required")
 
     match = await db.get(Match, uuid.UUID(match_id))
-    if not match or match.tournament_id != tournament_id:
+    if not match or match.tournament_id != str(tournament_id):
         raise HTTPException(status_code=404, detail="Match not found in this tournament")
 
     if score_a == score_b:
@@ -332,7 +332,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
     # Advance winner to next round
     next_round = (match.bracket_round or 1) + 1
     all_tmt_matches = await db.execute(
-        select(Match).where(Match.tournament_id == tournament_id, Match.bracket_round.isnot(None))
+        select(Match).where(Match.tournament_id == str(tournament_id), Match.bracket_round.isnot(None))
     )
     all_m = all_tmt_matches.scalars().all()
     total_rounds = max((m.bracket_round or 0) for m in all_m) if all_m else 0
@@ -341,7 +341,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
         next_pos = (match.bracket_position or 0) // 2
         existing = await db.execute(
             select(Match).where(
-                Match.tournament_id == tournament_id,
+                Match.tournament_id == str(tournament_id),
                 Match.bracket_round == next_round,
                 Match.bracket_position == next_pos,
             )
@@ -372,7 +372,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
 
 @router.post("/{tournament_id}/complete")
 async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -382,7 +382,7 @@ async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSes
     # Find winner from final match
     final_matches = (await db.execute(
         select(Match)
-        .where(Match.tournament_id == tournament_id, Match.bracket_round.isnot(None))
+        .where(Match.tournament_id == str(tournament_id), Match.bracket_round.isnot(None))
         .order_by(desc(Match.bracket_round), desc(Match.bracket_position))
         .limit(1)
     )).scalars().all()
@@ -415,7 +415,7 @@ async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSes
 
 @router.delete("/{tournament_id}")
 async def delete_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    tid = uuid.UUID(tournament_id)
+    tid = tournament_id
     t = await db.get(Tournament, tid)
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")

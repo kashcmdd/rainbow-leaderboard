@@ -139,7 +139,7 @@ async def get_recent_matches(limit: int = 50, db: AsyncSession = Depends(get_db)
 
 @router.delete("/matches/{match_id}")
 async def delete_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
-    match_uuid = uuid.UUID(match_id)
+    match_uuid = match_id
     await db.execute(sa_delete(RatingHistory).where(RatingHistory.match_id == match_uuid))
     result = await db.execute(select(Match).where(Match.id == match_uuid))
     match = result.scalar_one_or_none()
@@ -256,7 +256,7 @@ async def clear_all_player_stats(db: AsyncSession = Depends(get_db), admin_user:
 
 @router.post("/players/{player_id}/toggle-admin")
 async def toggle_admin(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -296,7 +296,7 @@ async def clear_audit_log(db: AsyncSession = Depends(get_db), admin_user: dict =
 
 @router.post("/players/{player_id}/adjust-elo")
 async def adjust_elo(player_id: uuid.UUID, body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -325,7 +325,7 @@ async def adjust_elo(player_id: uuid.UUID, body: dict, db: AsyncSession = Depend
 
 @router.post("/players/{player_id}/toggle-ban")
 async def toggle_ban(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -340,7 +340,7 @@ async def toggle_ban(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), a
 
 @router.post("/players/{player_id}/avatar")
 async def admin_set_avatar(player_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -478,7 +478,7 @@ async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_use
 
 @router.delete("/players/{player_id}/avatar")
 async def admin_remove_avatar(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -490,7 +490,7 @@ async def admin_remove_avatar(player_id: uuid.UUID, db: AsyncSession = Depends(g
 
 @router.get("/players/{player_id}")
 async def admin_get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -508,7 +508,7 @@ async def admin_get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_
 
 @router.put("/players/{player_id}/notes")
 async def admin_set_notes(player_id: uuid.UUID, body: NotesUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
-    pid = uuid.UUID(player_id)
+    pid = player_id
     player = await db.get(Player, pid)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -553,7 +553,7 @@ async def admin_import_players(file: UploadFile = File(...), db: AsyncSession = 
 
 @router.patch("/matches/{match_id}")
 async def admin_update_match(match_id: uuid.UUID, body: MatchUpdate, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin), __: None = Depends(csrf_protect)):
-    mid = uuid.UUID(match_id)
+    mid = match_id
     match = await db.get(Match, mid)
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
