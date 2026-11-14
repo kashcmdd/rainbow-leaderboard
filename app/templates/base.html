@@ -10,7 +10,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
     <meta property="og:description" content="Competitive Rainbow Six ladder with ELO ratings, match history, seasons and tournaments.">
-    <meta property="og:image" content="{{ request.base_url }}static/og.png">
+    <meta property="og:image" content="{{ (public_base_url or request.base_url).rstrip('/') }}/static/og.png">
     <meta name="twitter:card" content="summary_large_image">
     <script>
         (function () {

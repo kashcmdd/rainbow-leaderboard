@@ -15,6 +15,7 @@ router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 templates.env.globals["csrf_input"] = csrf_input
 templates.env.globals["site_name"] = settings.site_name
+templates.env.globals["public_base_url"] = settings.public_base_url
 
 
 async def _is_admin(request: Request, db: AsyncSession) -> bool:

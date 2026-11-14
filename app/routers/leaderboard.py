@@ -37,6 +37,11 @@ async def get_leaderboard(
                 .where(SeasonSnapshot.season_id == sid)
                 .order_by(SeasonSnapshot.position)
             )).scalars().all()
+            if rank:
+                snapshot_rows = [
+                    s for s in snapshot_rows
+                    if s.rank_title.lower().startswith(rank.lower())
+                ]
             avatar_map = {}
             player_ids = [s.player_id for s in snapshot_rows if s.player_id]
             if player_ids:

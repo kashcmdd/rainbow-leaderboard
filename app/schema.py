@@ -65,6 +65,13 @@ async def ensure_schema() -> None:
             tables, missing_columns = await _inspect_schema(conn)
 
             if "alembic_version" in tables:
+                missing_tables = {t.name for t in Base.metadata.sorted_tables} - tables
+                if missing_tables:
+                    raise RuntimeError(
+                        "alembic_version exists but these tables are missing: "
+                        f"{', '.join(sorted(missing_tables))}. Restore the database "
+                        "or reset the volume; refusing to serve a partial schema."
+                    )
                 await _run_alembic("upgrade", "head")
                 return
 
