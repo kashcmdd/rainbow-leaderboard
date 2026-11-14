@@ -11,6 +11,8 @@ load_dotenv(env_path, override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://rainbow:g4F6McABJjaPBwYDMSTZXwHt05k@localhost:5432/rainbow_test")
 # Tests run over http://test; Secure cookies would never be sent back.
 os.environ.setdefault("COOKIE_SECURE", "false")
+# CI has no .env; exercise the request-URL fallback for absolute meta links.
+os.environ.setdefault("PUBLIC_BASE_URL", "")
 
 from app.config import settings
 from app.database import engine, init_db
