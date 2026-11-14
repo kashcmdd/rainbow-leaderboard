@@ -19,6 +19,9 @@ class Settings(BaseSettings):
         "5v5": 0.5,
     }
     site_name: str = "clukzersLB"
+    cookie_secure: bool = False
+    public_base_url: str = ""
+    discord_webhook_url: str = ""
     discord_client_id: str = ""
     discord_client_secret: str = ""
     discord_redirect_uri: str = ""
@@ -36,7 +39,7 @@ settings = Settings()
 
 if not settings.secret_key:
     import warnings
-    warnings.warn("SECRET_KEY is empty! Set a SECRET_KEY in .env")
+    warnings.warn("SECRET_KEY is empty! Set a SECRET_KEY in .env", stacklevel=2)
 if not settings.discord_redirect_uri:
     import warnings
-    warnings.warn("DISCORD_REDIRECT_URI is empty! Set it in .env")
+    warnings.warn("DISCORD_REDIRECT_URI is empty! Set it in .env", stacklevel=2)

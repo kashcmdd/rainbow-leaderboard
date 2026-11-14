@@ -1,7 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PlayerCreate(BaseModel):
@@ -75,6 +76,7 @@ class LeaderboardEntry(BaseModel):
     losses: int
     win_rate: float
     streak: int = 0
+    avatar_url: Optional[str] = None
 
 
 class MatchOut(BaseModel):
@@ -88,3 +90,19 @@ class MatchOut(BaseModel):
     winner_name: Optional[str] = None
     elo_delta_a: Optional[int] = None
     elo_delta_b: Optional[int] = None
+
+
+class MatchDetail(BaseModel):
+    id: UUID
+    format: str
+    score_a: int
+    score_b: int
+    played_at: datetime
+    team_a_name: str
+    team_b_name: str
+    team_a_players: list[str] = []
+    team_b_players: list[str] = []
+    winner_name: Optional[str] = None
+    elo_delta_a: Optional[int] = None
+    elo_delta_b: Optional[int] = None
+    tournament_id: Optional[UUID] = None

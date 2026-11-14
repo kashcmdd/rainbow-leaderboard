@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, UniqueConstraint, Index
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -55,7 +55,7 @@ class Match(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     format = Column(String(8), nullable=False)
-    tournament_id = Column(String(64), nullable=True)
+    tournament_id = Column(UUID(as_uuid=True), ForeignKey("tournaments.id", ondelete="SET NULL"), nullable=True)
     bracket_round = Column(Integer, nullable=True)
     bracket_position = Column(Integer, nullable=True)
     team_a_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"), nullable=False)

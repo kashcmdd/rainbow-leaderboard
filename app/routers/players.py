@@ -1,19 +1,18 @@
-import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
-from sqlalchemy import select, desc, func
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.csrf import csrf_protect
 from app.database import get_db
 from app.deps import require_admin
-from app.models import Player, Rating, RatingHistory, Match, Team, TeamMember, Season, SeasonSnapshot
-from app.schemas import PlayerCreate, PlayerOut, AvatarSet
-from app.schemas_admin import PlayerUpdate
+from app.models import Match, Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
 from app.ranks import get_rank
-from app.csrf import csrf_protect
+from app.schemas import AvatarSet, PlayerCreate, PlayerOut
+from app.schemas_admin import PlayerUpdate
 
 AVATAR_DIR = Path(__file__).parent.parent / "static" / "avatars"
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -288,7 +287,7 @@ async def set_avatar(
         try:
             body = await request.json()
         except Exception:
-            raise HTTPException(status_code=400, detail="Send a file (multipart 'file') or JSON with {'url': '...'}")
+            raise HTTPException(status_code=400, detail="Send a file (multipart 'file') or JSON with {'url': '...'}") from None
         url = body.get("url")
         if not url:
             raise HTTPException(status_code=400, detail="Provide a 'url' field in JSON body or upload a 'file'")
@@ -355,19 +354,23 @@ async def get_player_history(
         .limit(limit)
     )).scalars().all()
 
-    out = []
-    for e in reversed(entries):
-        match = await db.get(Match, e.match_id)
-        if not match:
-            continue
-
-        match_result = await db.execute(
-            select(Match).options(
+    # One query for every match in the window instead of one per history row.
+    match_ids = {e.match_id for e in entries}
+    match_map = {}
+    if match_ids:
+        matches = (await db.execute(
+            select(Match)
+            .options(
                 selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
                 selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
-            ).where(Match.id == e.match_id)
-        )
-        match = match_result.scalar_one_or_none()
+            )
+            .where(Match.id.in_(match_ids))
+        )).scalars().all()
+        match_map = {m.id: m for m in matches}
+
+    out = []
+    for e in reversed(entries):
+        match = match_map.get(e.match_id)
         if not match:
             continue
 
@@ -383,10 +386,10 @@ async def get_player_history(
         if match.team_a_id and match.team_b_id:
             member_ids_a = {str(m.player_id) for m in match.team_a.members}
             member_ids_b = {str(m.player_id) for m in match.team_b.members}
-            if player_id in member_ids_a:
+            if str(player_id) in member_ids_a:
                 opponent = b_name
                 result_label = "win" if match.winner_team_id == match.team_a_id else "loss"
-            elif player_id in member_ids_b:
+            elif str(player_id) in member_ids_b:
                 opponent = a_name
                 result_label = "win" if match.winner_team_id == match.team_b_id else "loss"
 
@@ -412,25 +415,25 @@ async def get_player_seasons(player_id: uuid.UUID, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=404, detail="Player not found")
 
     snapshots = (await db.execute(
-        select(SeasonSnapshot)
+        select(SeasonSnapshot, Season)
+        .join(Season, Season.id == SeasonSnapshot.season_id)
         .where(SeasonSnapshot.player_id == player_id)
-        .order_by(SeasonSnapshot.id.desc())
+        .order_by(Season.end_date.desc().nullslast(), Season.start_date.desc())
         .limit(50)
-    )).scalars().all()
+    )).all()
 
     out = []
-    for s in snapshots:
-        season = await db.get(Season, s.season_id)
+    for snapshot, season in snapshots:
         out.append({
-            "season_id": str(s.season_id),
-            "season_name": season.name if season else "Unknown",
-            "season_status": season.status if season else "archived",
-            "season_end": season.end_date.isoformat() if season and season.end_date else None,
-            "elo": s.elo,
-            "rank_title": s.rank_title,
-            "rank_color": s.rank_color,
-            "wins": s.wins,
-            "losses": s.losses,
-            "position": s.position,
+            "season_id": str(snapshot.season_id),
+            "season_name": season.name,
+            "season_status": season.status,
+            "season_end": season.end_date.isoformat() if season.end_date else None,
+            "elo": snapshot.elo,
+            "rank_title": snapshot.rank_title,
+            "rank_color": snapshot.rank_color,
+            "wins": snapshot.wins,
+            "losses": snapshot.losses,
+            "position": snapshot.position,
         })
     return out

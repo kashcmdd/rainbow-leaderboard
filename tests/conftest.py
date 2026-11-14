@@ -1,25 +1,28 @@
 import os
-import pytest_asyncio
 from pathlib import Path
 
+import pytest_asyncio
 from dotenv import load_dotenv
+
 env_path = Path(__file__).parent.parent / ".env.test"
 # Do not override a DATABASE_URL already present in the environment: CI points
 # at its own postgres service, while a local run falls back to .env.test.
 load_dotenv(env_path, override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://rainbow:g4F6McABJjaPBwYDMSTZXwHt05k@localhost:5432/rainbow_test")
+# Tests run over http://test; Secure cookies would never be sent back.
+os.environ.setdefault("COOKIE_SECURE", "false")
 
-from app.database import init_db, engine
-from app.models import Base
 from app.config import settings
+from app.database import engine, init_db
+from app.models import Base
 
 settings.database_url = os.environ["DATABASE_URL"]
 
-from httpx import ASGITransport, AsyncClient
-from starlette.middleware.sessions import b64encode
-from itsdangerous import TimestampSigner
 import json
 
+from httpx import ASGITransport, AsyncClient
+from itsdangerous import TimestampSigner
+from starlette.middleware.sessions import b64encode
 
 MOCK_SESSION = {
     "user": {

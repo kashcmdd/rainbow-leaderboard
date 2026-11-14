@@ -1,10 +1,10 @@
 from app.elo import (
-    expected_score,
-    margin_multiplier,
-    k_factor,
-    progressive_multiplier,
     calculate_delta,
     calculate_delta_team,
+    expected_score,
+    k_factor,
+    margin_multiplier,
+    progressive_multiplier,
 )
 
 

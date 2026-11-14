@@ -29,6 +29,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Check compiled CSS is current
+        run: |
+          npm ci
+          npm run tw:build
+          git diff --exit-code app/static/css/tailwind.min.css
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -37,6 +48,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
 
       - name: Run tests
         run: pytest -q

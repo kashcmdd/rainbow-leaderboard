@@ -67,6 +67,7 @@ async def recalculate_top_positions(db, format: str = "1v1"):
     current slot holder retains the position until their ELO is strictly exceeded.
     """
     from sqlalchemy import select
+
     from app.models import Rating
 
     result = await db.execute(

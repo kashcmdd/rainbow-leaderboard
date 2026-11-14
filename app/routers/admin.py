@@ -2,20 +2,22 @@ import csv
 import io
 import uuid
 from datetime import datetime, timedelta, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
-from sqlalchemy import select, func, delete as sa_delete, update as sa_update, or_
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from pathlib import Path
 
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, or_, select
+from sqlalchemy import update as sa_update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.config import settings
+from app.csrf import csrf_protect
 from app.database import get_db
 from app.deps import require_admin
-from app.models import Player, Rating, RatingHistory, Match, TeamMember, Team, AuditLog, Season, SeasonSnapshot
+from app.models import AuditLog, Match, Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
 from app.ranks import RANKS, get_rank
-from app.csrf import csrf_protect
-from app.schemas_admin import NotesUpdate, MatchUpdate
+from app.schemas_admin import MatchUpdate, NotesUpdate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -167,7 +169,10 @@ async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin
                 await db.execute(sa_delete(Match).where(Match.id == mid))
         ratings = await db.execute(select(Rating).where(Rating.player_id == pid))
         for r in ratings.scalars().all():
-            r.elo = 0; r.wins = 0; r.losses = 0; r.matches_played = 0
+            r.elo = 0
+            r.wins = 0
+            r.losses = 0
+            r.matches_played = 0
     await db.commit()
     return {"status": "ok", "reset_count": len(player_ids)}
 
@@ -238,7 +243,10 @@ async def reset_player_stats(player_id: uuid.UUID, db: AsyncSession = Depends(ge
             await db.execute(sa_delete(Match).where(Match.id == mid))
 
     for r in ratings:
-        r.elo = 0; r.wins = 0; r.losses = 0; r.matches_played = 0
+        r.elo = 0
+        r.wins = 0
+        r.losses = 0
+        r.matches_played = 0
     await _log_audit(db, admin_user, "reset_player_stats", target_id=player_id)
     await db.commit()
     return {"status": "reset"}
@@ -469,7 +477,11 @@ async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_use
 
     # Reset all ratings
     for r in ratings:
-        r.elo = 0; r.wins = 0; r.losses = 0; r.matches_played = 0; r.top_position = None
+        r.elo = 0
+        r.wins = 0
+        r.losses = 0
+        r.matches_played = 0
+        r.top_position = None
 
     await _log_audit(db, admin_user, "close_season", target_name=name)
     await db.commit()

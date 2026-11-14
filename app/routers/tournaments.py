@@ -1,25 +1,21 @@
-import uuid
 import math
-from datetime import datetime, timezone
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.csrf import csrf_protect
 from app.database import get_db
 from app.deps import require_admin
-from app.models import (
-    Player, Team, TeamMember, Match, Rating, Tournament, TournamentParticipant, AuditLog
-)
+from app.models import AuditLog, Match, Player, Rating, Team, TeamMember, Tournament, TournamentParticipant
 from app.ranks import get_rank
-from app.csrf import csrf_protect
 
 router = APIRouter(prefix="/api/tournaments", tags=["tournaments"])
 
 
 async def _log_audit(db, admin_user, action, target_id=None, target_name=None, details=None):
-    from app.models import AuditLog
     entry = AuditLog(
         admin_id=admin_user["id"],
         admin_name=admin_user["username"],
@@ -87,7 +83,7 @@ async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(ge
 
     matches = (await db.execute(
         select(Match)
-        .where(Match.tournament_id == str(tournament_id))
+        .where(Match.tournament_id == tournament_id)
         .options(
             selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
             selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
@@ -254,7 +250,7 @@ async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(
 
         match_entry = Match(
             format=t.format,
-            tournament_id=str(t.id),
+            tournament_id=t.id,
             bracket_round=1,
             bracket_position=pos,
             team_a_id=team_a.id,
@@ -275,7 +271,7 @@ async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(
             await db.flush()
             placeholder = Match(
                 format=t.format,
-                tournament_id=str(t.id),
+                tournament_id=t.id,
                 bracket_round=rnd,
                 bracket_position=pos,
                 team_a_id=ta.id,
@@ -290,7 +286,6 @@ async def start_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(
     t.status = "active"
 
     # Auto-advance bye winners to the next round
-    from app.ranks import recalculate_top_positions
     for (rnd, pos), (player, side) in bye_advances.items():
         next_pos = pos // 2
         next_match = round_matches.get((rnd + 1, next_pos))
@@ -319,7 +314,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
         raise HTTPException(status_code=400, detail="match_id required")
 
     match = await db.get(Match, uuid.UUID(match_id))
-    if not match or match.tournament_id != str(tournament_id):
+    if not match or match.tournament_id != tournament_id:
         raise HTTPException(status_code=404, detail="Match not found in this tournament")
 
     if score_a == score_b:
@@ -332,7 +327,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
     # Advance winner to next round
     next_round = (match.bracket_round or 1) + 1
     all_tmt_matches = await db.execute(
-        select(Match).where(Match.tournament_id == str(tournament_id), Match.bracket_round.isnot(None))
+        select(Match).where(Match.tournament_id == tournament_id, Match.bracket_round.isnot(None))
     )
     all_m = all_tmt_matches.scalars().all()
     total_rounds = max((m.bracket_round or 0) for m in all_m) if all_m else 0
@@ -341,7 +336,7 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
         next_pos = (match.bracket_position or 0) // 2
         existing = await db.execute(
             select(Match).where(
-                Match.tournament_id == str(tournament_id),
+                Match.tournament_id == tournament_id,
                 Match.bracket_round == next_round,
                 Match.bracket_position == next_pos,
             )
@@ -357,13 +352,11 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
     else:
         # Final match completed
         t.status = "completed"
-        winning_team = match.team_a if match.winner_team_id == match.team_a_id else match.team_b
-        if winning_team:
-            members = (await db.execute(
-                select(Player).join(TeamMember).where(TeamMember.team_id == winning_team.id)
-            )).scalars().all()
-            winner_name = " + ".join(m.username for m in members) if members else "Unknown"
-            await _log_audit(db, admin_user, "tournament_winner", target_name=winner_name, details=f"Won tournament: {t.name}")
+        members = (await db.execute(
+            select(Player).join(TeamMember).where(TeamMember.team_id == match.winner_team_id)
+        )).scalars().all()
+        winner_name = " + ".join(m.username for m in members) if members else "Unknown"
+        await _log_audit(db, admin_user, "tournament_winner", target_name=winner_name, details=f"Won tournament: {t.name}")
 
     await _log_audit(db, admin_user, "report_tournament_match", target_name=t.name, details=f"Match {match_id}: {score_a}-{score_b}")
     await db.commit()
@@ -382,7 +375,7 @@ async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSes
     # Find winner from final match
     final_matches = (await db.execute(
         select(Match)
-        .where(Match.tournament_id == str(tournament_id), Match.bracket_round.isnot(None))
+        .where(Match.tournament_id == tournament_id, Match.bracket_round.isnot(None))
         .order_by(desc(Match.bracket_round), desc(Match.bracket_position))
         .limit(1)
     )).scalars().all()
@@ -390,10 +383,9 @@ async def complete_tournament(tournament_id: uuid.UUID, body: dict, db: AsyncSes
     winner_name = None
     if final_matches:
         fm = final_matches[0]
-        winning_team = fm.team_a if fm.winner_team_id == fm.team_a_id else fm.team_b
-        if winning_team:
+        if fm.winner_team_id:
             members = (await db.execute(
-                select(Player).join(TeamMember).where(TeamMember.team_id == winning_team.id)
+                select(Player).join(TeamMember).where(TeamMember.team_id == fm.winner_team_id)
             )).scalars().all()
             winner_name = " + ".join(m.username for m in members) if members else "Unknown"
             for m in members:

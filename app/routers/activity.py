@@ -1,8 +1,9 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models import Match, Player, Team, TeamMember
@@ -61,6 +62,7 @@ async def get_activity(limit: int = Query(20, ge=1, le=50), db: AsyncSession = D
             "type": "match",
             "message": f"{winner} won {score} vs {b_name if winner == a_name else a_name}",
             "detail": m.format.upper(),
+            "match_id": str(m.id),
             "timestamp": m.played_at.isoformat(),
             "time_ago": _time_ago(m.played_at),
         })

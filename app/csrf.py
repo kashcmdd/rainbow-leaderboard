@@ -12,7 +12,8 @@ The frontend should:
 """
 
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Request
+
+from fastapi import APIRouter, HTTPException, Request
 from starlette.status import HTTP_403_FORBIDDEN
 
 router = APIRouter(prefix="/api/csrf", tags=["csrf"])

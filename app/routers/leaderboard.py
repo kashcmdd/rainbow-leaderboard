@@ -2,14 +2,14 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Rating, Player, Team, TeamMember, Season, SeasonSnapshot
+from app.models import Player, Rating, Season, SeasonSnapshot, Team, TeamMember
+from app.ranks import RANKS, TOP_RANK_MIN_ELO, get_rank
 from app.schemas import LeaderboardEntry
-from app.ranks import get_rank, TOP_RANK_MIN_ELO, RANKS
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 
@@ -19,9 +19,50 @@ async def get_leaderboard(
     format: str,
     limit: int = Query(50, ge=1, le=200),
     rank: str = Query(None, description="Filter by rank tier (Bronze, Silver, Gold, etc.)"),
+    season: str = Query(None, description="Archived season id to read instead of live ratings"),
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import and_
+
+    # Historical ladder for an archived season (1v1 snapshots).
+    if season:
+        import uuid as _uuid
+        try:
+            sid = _uuid.UUID(season)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid season id") from None
+        season_obj = await db.get(Season, sid)
+        if season_obj and season_obj.status == "archived":
+            snapshot_rows = (await db.execute(
+                select(SeasonSnapshot)
+                .where(SeasonSnapshot.season_id == sid)
+                .order_by(SeasonSnapshot.position)
+            )).scalars().all()
+            avatar_map = {}
+            player_ids = [s.player_id for s in snapshot_rows if s.player_id]
+            if player_ids:
+                rows = (await db.execute(
+                    select(Player.id, Player.avatar_url).where(Player.id.in_(player_ids))
+                )).all()
+                avatar_map = {pid: url for pid, url in rows}
+            entries = []
+            for i, s in enumerate(snapshot_rows, 1):
+                total = (s.wins or 0) + (s.losses or 0)
+                entries.append(LeaderboardEntry(
+                    rank=s.position or i,
+                    player_id=s.player_id,
+                    name=s.player_name,
+                    elo=s.elo,
+                    rank_title=s.rank_title,
+                    rank_color=s.rank_color,
+                    matches_played=total,
+                    wins=s.wins or 0,
+                    losses=s.losses or 0,
+                    win_rate=round((s.wins or 0) / total, 3) if total > 0 else 0.0,
+                    streak=0,
+                    avatar_url=avatar_map.get(s.player_id),
+                ))
+            return entries
+
     q = select(Rating).options(selectinload(Rating.player)).where(
         Rating.format == format, Rating.player_id.isnot(None)
     )
@@ -38,7 +79,7 @@ async def get_leaderboard(
             else:
                 tiers[tier]["max"] = threshold
         # Set upper bounds exclusive — last tier has no upper bound
-        for i, tier in enumerate(tier_order):
+        for tier in tier_order:
             if tiers[tier]["max"] is not None:
                 tiers[tier]["max"] = tiers[tier]["max"] - 1
             else:
@@ -72,6 +113,7 @@ async def get_leaderboard(
             losses=r.losses,
             win_rate=win_rate,
             streak=r.streak or 0,
+            avatar_url=r.player.avatar_url if r.player else None,
         ))
     return entries
 
@@ -130,12 +172,14 @@ async def get_team_leaderboard(
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
+    rating_q = (
         select(Rating)
+        .options(selectinload(Rating.team).selectinload(Team.members).selectinload(TeamMember.player))
         .where(Rating.format == format, Rating.team_id.isnot(None))
         .order_by(desc(Rating.elo))
         .limit(limit)
     )
+    result = await db.execute(rating_q)
     ratings = result.scalars().all()
 
     entries = []
@@ -144,12 +188,7 @@ async def get_team_leaderboard(
         if team and team.name:
             name = team.name
         elif team:
-            members_result = await db.execute(
-                select(Player).join(TeamMember, TeamMember.player_id == Player.id)
-                .where(TeamMember.team_id == team.id)
-            )
-            members = members_result.scalars().all()
-            name = " + ".join(m.username for m in members)
+            name = " + ".join(m.player.username for m in team.members) if team.members else "Unknown Team"
         else:
             name = "Unknown Team"
 
@@ -168,6 +207,7 @@ async def get_team_leaderboard(
             wins=r.wins,
             losses=r.losses,
             win_rate=win_rate,
+            avatar_url=None,
         ))
     return entries
 

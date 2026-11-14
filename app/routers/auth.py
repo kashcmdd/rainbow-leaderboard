@@ -1,17 +1,21 @@
+import re
 import secrets
-import httpx
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 from pathlib import Path
 from urllib.parse import urlencode
 
+import httpx
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
+from app.csrf import csrf_input
 from app.database import get_db
 from app.models import Player, Rating
-from app.csrf import csrf_input
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -80,39 +84,78 @@ async def callback(request: Request, code: str, state: str = None, db: AsyncSess
         discord_user = user_resp.json()
 
     discord_id = discord_user["id"]
-    username = discord_user.get("global_name") or discord_user["username"]
+    raw_name = discord_user.get("global_name") or discord_user.get("username") or ""
+    # Player usernames are unique and limited to 64 chars; Discord names can
+    # collide or contain characters we do not want in a URL/table cell.
+    base = re.sub(r"[^\w\-. ]+", "", str(raw_name), flags=re.UNICODE).strip()[:64].strip()
+    if not base:
+        base = f"player-{discord_id[-4:]}"
+
     avatar_hash = discord_user.get("avatar", "")
     avatar_url = _discord_avatar_url(discord_id, avatar_hash) if avatar_hash else None
 
     result = await db.execute(select(Player).where(Player.discord_id == discord_id))
     player = result.scalar_one_or_none()
 
+    if player and player.is_banned:
+        return RedirectResponse(url="/auth/login?error=banned", status_code=302)
+
+    async def _unique_username(candidate: str, exclude_id=None) -> str:
+        name = candidate
+        n = 1
+        while True:
+            existing = (await db.execute(
+                select(Player).where(Player.username == name)
+            )).scalar_one_or_none()
+            if existing is None or (exclude_id is not None and existing.id == exclude_id):
+                return name
+            n += 1
+            suffix = f"-{n}"
+            name = candidate[: 64 - len(suffix)] + suffix
+
     if not player:
+        username = await _unique_username(base)
         player = Player(username=username, discord_id=discord_id, avatar_url=avatar_url)
         db.add(player)
-        await db.flush()
-        rating = Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0)
-        db.add(rating)
-        await db.commit()
+        try:
+            await db.flush()
+            rating = Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0)
+            db.add(rating)
+            await db.commit()
+        except IntegrityError:
+            # Another login won the race between the uniqueness check and insert.
+            await db.rollback()
+            player = (await db.execute(
+                select(Player).where(Player.discord_id == discord_id)
+            )).scalar_one_or_none()
+            if player is None:
+                suffix = "-" + uuid.uuid4().hex[:4]
+                player = Player(username=base[: 64 - len(suffix)] + suffix,
+                                discord_id=discord_id, avatar_url=avatar_url)
+                db.add(player)
+                await db.flush()
+                db.add(Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0))
+                await db.commit()
     else:
         needs_update = False
-        if player.username != username:
-            player.username = username
+        desired = await _unique_username(base, exclude_id=player.id)
+        if player.username != desired:
+            player.username = desired
             needs_update = True
         if player.avatar_url != avatar_url:
             player.avatar_url = avatar_url
             needs_update = True
         if needs_update:
-            await db.commit()
-
-    if player and player.is_banned:
-        return RedirectResponse(url="/auth/login?error=banned", status_code=302)
+            try:
+                await db.commit()
+            except IntegrityError:
+                await db.rollback()
 
     is_admin = discord_id in settings.admin_discord_ids or (player and player.is_admin)
 
     request.session["user"] = {
         "id": discord_id,
-        "username": username,
+        "username": username if not player else player.username,
         "avatar": avatar_hash,
         "is_admin": is_admin,
     }

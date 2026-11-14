@@ -1,20 +1,36 @@
-from fastapi import APIRouter, Request, Depends
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pathlib import Path
 
-from app.database import get_db
-from app.deps import require_user
-from app.models import Player, Player as PlayerModel
-from app.csrf import csrf_input
 from app.config import settings
+from app.csrf import csrf_input
+from app.database import get_db
+from app.models import Player
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 templates.env.globals["csrf_input"] = csrf_input
 templates.env.globals["site_name"] = settings.site_name
+
+
+async def _is_admin(request: Request, db: AsyncSession) -> bool:
+    """Keep the page guard in sync with the API guard (DB + allowlist)."""
+    user = request.session.get("user")
+    if not user:
+        return False
+    is_admin = user["id"] in settings.admin_discord_ids
+    if not is_admin:
+        result = await db.execute(select(Player).where(Player.discord_id == user["id"]))
+        player = result.scalar_one_or_none()
+        is_admin = player is not None and player.is_admin
+    if user.get("is_admin") != is_admin:
+        user["is_admin"] = is_admin
+        request.session["user"] = user
+    return is_admin
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -32,18 +48,26 @@ async def player_page(request: Request, player_id: str):
     return templates.TemplateResponse(request, "player.html", {"player_id": player_id})
 
 
+@router.get("/team/{team_id}", response_class=HTMLResponse)
+async def team_page(request: Request, team_id: str):
+    return templates.TemplateResponse(request, "team.html", {"team_id": team_id})
+
+
+@router.get("/match/{match_id}", response_class=HTMLResponse)
+async def match_page(request: Request, match_id: str):
+    return templates.TemplateResponse(request, "match.html", {"match_id": match_id})
+
+
 @router.get("/player/{player_id}/edit", response_class=HTMLResponse)
-async def edit_player_page(request: Request, player_id: str):
-    user = request.session.get("user")
-    if not user or not user.get("is_admin"):
+async def edit_player_page(request: Request, player_id: str, db: AsyncSession = Depends(get_db)):
+    if not await _is_admin(request, db):
         return RedirectResponse(url=f"/player/{player_id}", status_code=302)
     return templates.TemplateResponse(request, "player_edit.html", {"player_id": player_id})
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request):
-    user = request.session.get("user")
-    if not user or not user.get("is_admin"):
+async def admin_page(request: Request, db: AsyncSession = Depends(get_db)):
+    if not await _is_admin(request, db):
         return RedirectResponse(url="/", status_code=302)
     return templates.TemplateResponse(request, "admin.html")
 

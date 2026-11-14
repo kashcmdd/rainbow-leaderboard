@@ -1,19 +1,18 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 from pathlib import Path
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.database import init_db, engine
-from app.routers import players, matches, leaderboard, pages, auth, admin, tournaments, activity, stats
 from app.csrf import router as csrf_router
+from app.database import engine
+from app.routers import activity, admin, auth, leaderboard, matches, pages, players, stats, teams, tournaments
 
 scheduler = AsyncIOScheduler()
 
@@ -22,11 +21,13 @@ async def run_elo_decay():
     import logging
     logger = logging.getLogger(__name__)
     try:
-        from app.database import async_session
-        from app.models import Rating, Player, AuditLog
-        from app.ranks import RANKS
         from datetime import datetime, timedelta, timezone
+
         from sqlalchemy import select
+
+        from app.database import async_session
+        from app.models import AuditLog, Rating
+        from app.ranks import RANKS
 
         async with async_session() as db:
             cutoff = datetime.now(timezone.utc) - timedelta(days=settings.decay_days)
@@ -42,7 +43,7 @@ async def run_elo_decay():
                 days_inactive = (datetime.now(timezone.utc) - r.last_active).days
                 decay = min(days_inactive * settings.decay_per_day, settings.max_decay)
                 min_elo = 0
-                for name, threshold, _ in reversed(RANKS):
+                for _name, threshold, _ in reversed(RANKS):
                     if r.elo >= threshold:
                         min_elo = threshold
                         break
@@ -60,9 +61,10 @@ async def run_elo_decay():
                     ))
             await db.commit()
 
-            # Recalculate exclusive top positions after decay
+            # Recalculate exclusive top positions for every rated format
             from app.ranks import recalculate_top_positions
-            await recalculate_top_positions(db)
+            for fmt in settings.format_k_multipliers:
+                await recalculate_top_positions(db, fmt)
             await db.commit()
     except Exception as e:
         logger.error("ELO decay job failed: %s", e, exc_info=True)
@@ -70,13 +72,8 @@ async def run_elo_decay():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_matches_played_at ON matches(played_at)"))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rating_history_changed_at ON rating_history(changed_at)"))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_log_created_at ON audit_log(created_at)"))
-    import logging
-    logger = logging.getLogger(__name__)
+    from app.schema import ensure_schema
+    await ensure_schema()
     scheduler.add_job(run_elo_decay, 'interval', hours=24, id='elo_decay', max_instances=1, misfire_grace_time=3600)
     scheduler.start()
     yield
@@ -86,8 +83,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Rainbow Leaderboard", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "app" / "templates")
 templates.env.globals["site_name"] = settings.site_name
-# NOTE: Set https_only=True once TLS termination is set up (reverse proxy or Coolify SSL)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=False)
+# NOTE: Set COOKIE_SECURE=true behind TLS (reverse proxy or Coolify SSL)
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, https_only=settings.cookie_secure)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -113,6 +110,19 @@ async def not_found(request: Request, exc):
 async def server_error(request: Request, exc):
     return templates.TemplateResponse(request, "error.html", {"code": 500, "message": "Something went wrong"}, status_code=500)
 
+
+@app.get("/healthz")
+async def healthz():
+    from fastapi.responses import JSONResponse
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Health check failed: %s", exc)
+        return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
+    return JSONResponse(content={"status": "ok", "database": "ok"}, headers={"Cache-Control": "no-store"})
+
 static_dir = Path(__file__).parent / "app" / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -124,6 +134,7 @@ app.include_router(leaderboard.router)
 app.include_router(pages.router)
 app.include_router(admin.router)
 app.include_router(tournaments.router)
+app.include_router(teams.router)
 app.include_router(activity.router)
 app.include_router(stats.router)
 app.include_router(csrf_router)
