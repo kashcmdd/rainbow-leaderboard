@@ -7,6 +7,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.models import Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
 from app.ranks import RANKS, TOP_RANK_MIN_ELO, get_rank
@@ -92,6 +93,8 @@ async def get_leaderboard(
                     avatar_url=avatar_map.get(s.player_id),
                     form=[],
                     movement_7d=0,
+                    rd=0.0,
+                    provisional=False,
                 ))
             return entries
 
@@ -150,6 +153,8 @@ async def get_leaderboard(
             avatar_url=r.player.avatar_url if r.player else None,
             form=history_map.get(r.id, {}).get("form", []),
             movement_7d=history_map.get(r.id, {}).get("movement", 0),
+            rd=round(r.rd or 0, 1),
+            provisional=(r.rd or 0) > settings.provisional_rd,
         ))
     return entries
 
@@ -247,6 +252,8 @@ async def get_team_leaderboard(
             avatar_url=None,
             form=history_map.get(r.id, {}).get("form", []),
             movement_7d=history_map.get(r.id, {}).get("movement", 0),
+            rd=round(r.rd or 0, 1),
+            provisional=(r.rd or 0) > settings.provisional_rd,
         ))
     return entries
 

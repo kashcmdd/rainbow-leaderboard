@@ -6,6 +6,7 @@ from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.models import Match, Rating, RatingHistory, Team, TeamMember
 from app.ranks import get_rank
@@ -117,6 +118,8 @@ async def get_team(team_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         "losses": rating.losses if rating else 0,
         "matches_played": rating.matches_played if rating else 0,
         "streak": (rating.streak or 0) if rating else 0,
+        "rd": round((rating.rd or 0) if rating else 0, 1),
+        "provisional": ((rating.rd or 0) if rating else 0) > settings.provisional_rd,
         "form": form,
         "movement_7d": movement,
         "history": [

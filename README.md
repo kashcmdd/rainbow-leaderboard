@@ -8,7 +8,7 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** built 
 
 ## ✨ What It Can Do
 
-- **ELO Rating System** — Glicko-2 ratings (shown as ELO) with rating deviation: new players start at 500 with RD 350, win/loss outcomes, per-player team updates, and multi-format support (1v1 through 5v5). Inactivity grows RD instead of decaying the rating, so returning players move more. Scores are capped at 20 per side.
+- **ELO Rating System** — Glicko-2 ratings (shown as ELO) with rating deviation: new players start at 500 with RD 350, shown with a Provisional badge and ±RD until they settle, win/loss outcomes, per-player team updates, and multi-format support (1v1 through 5v5). Inactivity grows RD instead of decaying the rating, so returning players move more. Scores are capped at 20 per side.
 - **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
 - **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
 - **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.

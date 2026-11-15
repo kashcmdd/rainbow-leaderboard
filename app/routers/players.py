@@ -86,6 +86,8 @@ async def compare_players(
                 "losses": r.losses,
                 "streak": r.streak or 0,
                 "top_position": r.top_position,
+                "rd": round(r.rd or 0, 1),
+                "provisional": (r.rd or 0) > settings.provisional_rd,
             }
             for r in player.ratings
         ]
@@ -202,6 +204,8 @@ async def get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             "losses": r.losses,
             "streak": r.streak or 0,
             "top_position": r.top_position,
+            "rd": round(r.rd or 0, 1),
+            "provisional": (r.rd or 0) > settings.provisional_rd,
         }
         for r in player.ratings
     ]

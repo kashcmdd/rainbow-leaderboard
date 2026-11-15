@@ -281,6 +281,7 @@ function renderProfile(root, state) {
         '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-3.5 w-3.5">' + esc(rank.label) + '</span>' +
         '<span class="micro">' + totPlayed.toLocaleString() + ' matches</span>' +
         '<span class="micro" style="color:var(--ink-2)">' + wr.toFixed(0) + '% WR</span>' +
+        (best && best.provisional ? '<span class="badge badge-warn">Provisional</span>' : '') +
         (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '">' + (best.streak > 0 ? '+' : '') + best.streak + '</span>' : '') +
         (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn btn-sm">Edit</a>' : '') +
         '</div>' +
@@ -291,7 +292,7 @@ function renderProfile(root, state) {
         '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-10 w-auto sm:h-12">' +
         '<div>' +
         '<div id="eloCounter" class="num rank-elo text-[32px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
-        '<div class="micro mt-1">ELO · <span style="color:' + (movement > 0 ? 'var(--win)' : movement < 0 ? 'var(--loss)' : 'var(--ink-3)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span></div>' +
+        '<div class="micro mt-1">ELO' + (best && best.rd ? ' · ±' + Math.round(best.rd) + ' RD' : '') + ' · <span style="color:' + (movement > 0 ? 'var(--win)' : movement < 0 ? 'var(--loss)' : 'var(--ink-3)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span></div>' +
         '</div></div>' +
         progressBlock +
         '</div></div>' +

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     starting_rd: float = 350.0
     starting_volatility: float = 0.06
     glicko_tau: float = 0.5
+    provisional_rd: float = 200.0
     max_score_per_side: int = 20
     rating_floor: int = 0
     margin_weight: float = 0.3

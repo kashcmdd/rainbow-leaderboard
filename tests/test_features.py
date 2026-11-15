@@ -77,6 +77,7 @@ class TestTeams:
         assert team2["matches_played"] == 2
         assert len(team2["history"]) == 2
         assert len(team2["form"]) == 2
+        assert team2["rd"] < settings.starting_rd
         assert team2["movement_7d"] == team2["history"][-1]["elo"] - 500
 
         board2 = (await client.get("/api/leaderboard/1v1/team")).json()
@@ -348,6 +349,13 @@ class TestStartingRating:
         detail = (await client.get(f"/api/players/{player['id']}")).json()
         rating = next(r for r in detail["ratings"] if r["format"] == "1v1")
         assert rating["elo"] == settings.starting_elo
+        assert rating["rd"] == settings.starting_rd
+        assert rating["provisional"] is True
+
+        board = (await client.get("/api/leaderboard/1v1")).json()
+        entry = next(e for e in board if e["name"] == "fresh-player")
+        assert entry["provisional"] is True
+        assert entry["rd"] == settings.starting_rd
 
         async with async_session() as db:
             stored = (await db.execute(

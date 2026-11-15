@@ -79,6 +79,8 @@ class LeaderboardEntry(BaseModel):
     avatar_url: Optional[str] = None
     form: list[str] = []
     movement_7d: int = 0
+    rd: float = 0.0
+    provisional: bool = False
 
 
 class MatchOut(BaseModel):
