@@ -10,8 +10,9 @@ Public surfaces:
 
 - **Home** — ladder summary and recent activity.
 - **Leaderboard** — standings by format, with player and team views.
-- **Player** — profile with last-five form, weekly ELO movement, progress to the
-  next tier, ELO trend, win rate, season history, match history.
+- **Player** — profile with last-five form, weekly ELO movement, rating
+  deviation/provisional state, progress to the next tier, ELO trend, win rate,
+  season history, match history.
 - **Team** — roster, team rating and recent results for a repeated lineup.
 - **Match** — shareable single-match report with both sides and ELO deltas.
 - **Compare** — two-player head-to-head.

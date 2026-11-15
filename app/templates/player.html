@@ -291,8 +291,12 @@ function renderProfile(root, state) {
         '<div class="flex items-center gap-3">' +
         '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-10 w-auto sm:h-12">' +
         '<div>' +
+        '<div class="stat-label">ELO</div>' +
         '<div id="eloCounter" class="num rank-elo text-[32px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
-        '<div class="micro mt-1">ELO' + (best && best.rd ? ' · ±' + Math.round(best.rd) + ' RD' : '') + ' · <span style="color:' + (movement > 0 ? 'var(--win)' : movement < 0 ? 'var(--loss)' : 'var(--ink-3)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span></div>' +
+        '<div class="micro mt-1">' +
+        (best && best.rd ? '±' + Math.round(best.rd) + ' RD' : '') +
+        (movement ? ' · <span style="color:' + (movement > 0 ? 'var(--win)' : 'var(--loss)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span>' : '') +
+        '</div>' +
         '</div></div>' +
         progressBlock +
         '</div></div>' +

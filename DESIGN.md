@@ -77,6 +77,8 @@ Defined once in `app/static/css/input.css` (`@layer components`) and reused:
   and the “More” sheet. Visible below `md`; body reserves
   `58px + env(safe-area-inset-bottom)`.
 - Form ticks (five bordered W/L squares) and the movement label (`+24 7d`).
+- Rating deviation: `±RD` under the rating and a `Provisional` badge while
+  RD is above the configured threshold.
 - Season selector in the leaderboard toolbar; archived seasons show a signal
   note and hide the Teams tab.
 - Match/team dossiers reuse the same panel, badge, meter and rank-chip pieces.
