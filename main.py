@@ -12,9 +12,39 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.csrf import router as csrf_router
 from app.database import engine
-from app.routers import activity, admin, auth, leaderboard, matches, pages, players, stats, teams, tournaments
+from app.routers import activity, admin, auth, leaderboard, matches, og, pages, players, stats, teams, tournaments
 
 scheduler = AsyncIOScheduler()
+
+
+async def run_season_autoclose():
+    """Close active seasons whose end date has passed, when enabled."""
+    if not settings.auto_close_seasons:
+        return
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from datetime import datetime, timezone
+
+        from sqlalchemy import select
+
+        from app.database import async_session
+        from app.models import Season
+        from app.season_service import close_season
+
+        now = datetime.now(timezone.utc)
+        async with async_session() as db:
+            due = (await db.execute(
+                select(Season).where(
+                    Season.status == "active",
+                    Season.end_date.isnot(None),
+                    Season.end_date <= now,
+                )
+            )).scalars().all()
+            for season in due:
+                await close_season(db, season.name, "Scheduler", "system")
+    except Exception as e:
+        logger.error("Season auto-close job failed: %s", e, exc_info=True)
 
 
 async def run_rd_inflation():
@@ -56,6 +86,10 @@ async def lifespan(app: FastAPI):
     from app.schema import ensure_schema
     await ensure_schema()
     scheduler.add_job(run_rd_inflation, 'interval', hours=24, id='rd_inflation', max_instances=1, misfire_grace_time=3600)
+    scheduler.add_job(
+        run_season_autoclose, 'cron', hour=settings.season_close_hour, minute=0,
+        id='season_autoclose', max_instances=1, misfire_grace_time=3600,
+    )
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)
@@ -118,6 +152,7 @@ app.include_router(leaderboard.router)
 app.include_router(pages.router)
 app.include_router(admin.router)
 app.include_router(tournaments.router)
+app.include_router(og.router)
 app.include_router(teams.router)
 app.include_router(activity.router)
 app.include_router(stats.router)

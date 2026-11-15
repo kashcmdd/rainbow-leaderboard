@@ -8,7 +8,7 @@
         <h1 class="display text-[34px] leading-none sm:text-[40px]" id="teamName">Team</h1>
         <p class="micro mt-2" id="teamMeta">Loading…</p>
     </div>
-    <a href="/leaderboard?tab=teams" class="micro hover:text-ink">← Teams</a>
+    <a href="/teams" class="micro hover:text-ink">← Teams</a>
 </div>
 
 <div id="teamRoot">
@@ -64,7 +64,7 @@ async function loadTeam() {
     }
     const t = await res.json();
     document.getElementById('teamName').textContent = t.name;
-    document.getElementById('teamMeta').textContent = `${t.format.toUpperCase()} · ${t.matches_played} ${t.matches_played === 1 ? 'match' : 'matches'} · ${t.wins}W ${t.losses}L`;
+    document.getElementById('teamMeta').textContent = `${t.format.toUpperCase()} · ${t.matches_played} ${t.matches_played === 1 ? 'match' : 'matches'} · ${t.wins}W ${t.losses}L${t.captain ? ' · Captain ' + t.captain : ''}`;
 
     const members = t.members.map(m => `
         <a href="/player/${m.id}" class="flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0" style="border-color:var(--line)">
@@ -96,6 +96,27 @@ async function loadTeam() {
             </a>`).join('');
 
     const solo = t.format === '1v1' && t.members.length === 1;
+    let manage = '';
+    let need = 0;
+    if (t.can_manage) {
+        const all = await (await fetch('/api/players')).json();
+        const memberIds = new Set(t.members.map((m) => m.id));
+        need = parseInt(t.format.split('v')[0], 10);
+        manage = `<section class="section mt-8">
+            <div class="section-head"><h2 class="section-title">Manage team</h2><span class="micro">${need} ${need === 1 ? 'player' : 'players'}</span></div>
+            <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <input id="teamNameInput" class="field" maxlength="128" aria-label="Team name">
+                <button id="saveTeamBtn" type="button" class="btn btn-pink">Save team</button>
+            </div>
+            <div id="rosterPicker" class="mt-4 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                ${all.map((p) => `<label class="flex items-center gap-2 border-b py-2" style="border-color:var(--line)"><input type="checkbox" class="checkbox roster-check" value="${p.id}" ${memberIds.has(p.id) ? 'checked' : ''}><span class="text-[13px]">${esc(p.username)}</span></label>`).join('')}
+            </div>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <span id="rosterCount" class="micro"></span>
+                <button id="deactivateTeamBtn" type="button" class="btn btn-danger btn-sm">Deactivate team</button>
+            </div>
+        </section>`;
+    }
     root.innerHTML = `
         <section class="mb-5 border-b pb-5" style="border-color:var(--line)">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -127,7 +148,49 @@ async function loadTeam() {
         <div class="grid grid-cols-1 gap-6 ${solo ? '' : 'lg:grid-cols-3'}">
             ${solo ? '' : `<div><div class="section-head"><h2 class="section-title">Roster</h2><span class="micro">${t.members.length}</span></div><div>${members}</div></div>`}
             <div class="${solo ? '' : 'lg:col-span-2'}"><div class="section-head"><h2 class="section-title">Recent matches</h2><span class="micro">${t.recent_matches.length}</span></div><div>${matches}</div></div>
-        </div>`;
+        </div>${manage}`;
+    if (t.can_manage) wireTeamEditor(t, need);
+}
+
+function wireTeamEditor(t, need) {
+    const nameInput = document.getElementById('teamNameInput');
+    if (nameInput) nameInput.value = t.name;
+    const boxes = () => [...document.querySelectorAll('.roster-check')];
+    const count = () => {
+        const el = document.getElementById('rosterCount');
+        if (!el) return;
+        const n = boxes().filter((b) => b.checked).length;
+        el.textContent = n + ' of ' + need + ' selected';
+        el.style.color = n === need ? 'var(--ink-3)' : 'var(--loss)';
+    };
+    boxes().forEach((b) => b.addEventListener('change', count));
+    count();
+
+    const save = document.getElementById('saveTeamBtn');
+    if (save) save.addEventListener('click', async () => {
+        const ids = boxes().filter((b) => b.checked).map((b) => b.value);
+        if (ids.length !== need) { alert('Select exactly ' + need + ' player' + (need === 1 ? '' : 's') + '.'); return; }
+        save.disabled = true;
+        const res = await window.apiFetch('/api/teams/' + t.id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: nameInput.value.trim(), player_ids: ids }),
+        });
+        if (res.ok) location.reload();
+        else {
+            const err = await res.json().catch(() => ({}));
+            save.disabled = false;
+            alert(err.detail || 'Could not save the team.');
+        }
+    });
+
+    const deactivate = document.getElementById('deactivateTeamBtn');
+    if (deactivate) deactivate.addEventListener('click', async () => {
+        if (!confirm('Deactivate this team? Its history stays, but it will not be reused for new matches.')) return;
+        const res = await window.apiFetch('/api/teams/' + t.id, { method: 'DELETE' });
+        if (res.ok) window.location.href = '/teams';
+        else alert('Could not deactivate the team.');
+    });
 }
 
 loadTeam();

@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -191,8 +192,10 @@ async def _find_or_create_team(db: AsyncSession, format: str, players: list[Play
     existing = (await db.execute(
         select(Team)
         .options(selectinload(Team.members))
-        .where(Team.format == format)
+        .where(Team.format == format, Team.is_active.is_(True))
     )).scalars().all()
+    # Prefer a named, managed team over an unnamed shell with the same roster.
+    existing.sort(key=lambda t: t.name is None)
     for team in existing:
         if {str(m.player_id) for m in team.members} == player_ids:
             return team
@@ -314,6 +317,25 @@ async def _apply_player_ratings(
     await db.flush()
 
 
+async def _apply_result(
+    db: AsyncSession,
+    match: Match,
+    team_a_players: list[Player],
+    team_b_players: list[Player],
+    winner: str,
+) -> None:
+    a_updates, b_updates, match.elo_delta_a, match.elo_delta_b = await _compute_updates(
+        db, match.format, team_a_players, team_b_players, winner, create=True,
+    )
+    await _apply_player_ratings(
+        db, team_a_players, a_updates, winner == "a", match.format, match.id
+    )
+    await _apply_player_ratings(
+        db, team_b_players, b_updates, winner == "b", match.format, match.id
+    )
+    await _update_team_ratings(db, match.team_a, match.team_b, winner, match.format, match.id)
+
+
 @router.post("")
 async def report_match(
     body: MatchReport,
@@ -363,6 +385,14 @@ async def report_match(
     team_a = await _find_or_create_team(db, body.format, team_a_players)
     team_b = await _find_or_create_team(db, body.format, team_b_players)
 
+    # Admin reports are trusted; player reports wait for the opponent.
+    trusted = (
+        bool(reporter_player and reporter_player.is_admin)
+        or bool(session_user.get("is_admin"))
+        or reporter_did in settings.admin_discord_ids
+    )
+    pending = settings.require_match_confirmation and not trusted
+    now = datetime.now(timezone.utc)
     match = Match(
         format=body.format,
         team_a_id=team_a.id,
@@ -370,6 +400,15 @@ async def report_match(
         score_a=body.score_a,
         score_b=body.score_b,
         winner_team_id=team_a.id if winner == "a" else team_b.id,
+        status="pending" if pending else "confirmed",
+        reported_by=reporter_did,
+        reported_by_name=session_user.get("username"),
+        confirmed_by=None if pending else session_user.get("username"),
+        confirmed_at=None if pending else now,
+        map_name=body.map_name,
+        side_a=body.side_a,
+        operator_bans=json.dumps(body.operator_bans) if body.operator_bans else None,
+        evidence_url=body.evidence_url,
     )
     db.add(match)
     await db.flush()
@@ -379,22 +418,13 @@ async def report_match(
     winner_score = body.score_a if winner == "a" else body.score_b
     loser_score = body.score_b if winner == "a" else body.score_a
 
-    a_updates, b_updates, match.elo_delta_a, match.elo_delta_b = await _compute_updates(
-        db, body.format, team_a_players, team_b_players, winner, create=True,
-    )
-
-    await _apply_player_ratings(
-        db, team_a_players, a_updates, winner == "a", body.format, match.id
-    )
-    await _apply_player_ratings(
-        db, team_b_players, b_updates, winner == "b", body.format, match.id
-    )
-    await _update_team_ratings(db, team_a, team_b, winner, body.format, match.id)
+    if not pending:
+        await _apply_result(db, match, team_a_players, team_b_players, winner)
 
     await db.commit()
 
     # Exclusive top 10 positions are tracked for 1v1 only.
-    if body.format == "1v1":
+    if not pending and body.format == "1v1":
         await recalculate_top_positions(db)
         await db.commit()
 
@@ -424,7 +454,7 @@ async def report_match(
                 db.add(TeamMember(team_id=target_team_id, player_id=pid))
             await db.commit()
 
-    if settings.discord_webhook_url:
+    if not pending and settings.discord_webhook_url:
         winners = " + ".join(p.username for p in winner_players)
         losers = " + ".join(p.username for p in loser_players)
         message = f"{winners} won {winner_score}-{loser_score} vs {losers} ({body.format})"
@@ -436,6 +466,7 @@ async def report_match(
 
     return {
         "match_id": str(match.id),
+        "status": match.status,
         "winner": "team_a" if winner == "a" else "team_b",
         "score": f"{body.score_a}-{body.score_b}",
         "winner_player_id": first_winner_id,
@@ -445,6 +476,121 @@ async def report_match(
         },
     }
 
+
+
+
+async def _viewer(db: AsyncSession, request: Request):
+    session_user = request.session.get("user")
+    if not session_user:
+        return None, False
+    player = (await db.execute(select(Player).where(Player.discord_id == session_user["id"]))).scalar_one_or_none()
+    is_admin = bool(player and player.is_admin) or bool(session_user.get("is_admin")) or session_user["id"] in settings.admin_discord_ids
+    return player, is_admin
+
+
+def _members(team: Team) -> set[str]:
+    return {str(m.player_id) for m in team.members}
+
+
+@router.post("/{match_id}/confirm")
+async def confirm_match(
+    match_id: uuid.UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+):
+    session_user = request.session.get("user")
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    match = (await db.execute(
+        select(Match)
+        .options(
+            selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
+            selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
+        )
+        .where(Match.id == match_id)
+    )).scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if match.status == "confirmed":
+        return {"status": "confirmed", "elo_deltas": {"winner_delta": match.elo_delta_a, "loser_delta": match.elo_delta_b}}
+    if match.status not in ("pending", "disputed"):
+        raise HTTPException(status_code=400, detail="This match cannot be confirmed")
+
+    player, is_admin = await _viewer(db, request)
+    is_participant = bool(player) and str(player.id) in (_members(match.team_a) | _members(match.team_b))
+    if not (is_admin or is_participant):
+        raise HTTPException(status_code=403, detail="Only the players or an admin can confirm")
+    if match.status == "disputed" and not is_admin:
+        raise HTTPException(status_code=403, detail="A disputed match needs an admin")
+    if not is_admin and match.reported_by == session_user["id"]:
+        raise HTTPException(status_code=400, detail="Wait for your opponent to confirm")
+
+    team_a_players = [m.player for m in match.team_a.members if m.player]
+    team_b_players = [m.player for m in match.team_b.members if m.player]
+    winner = "a" if match.winner_team_id == match.team_a_id else "b"
+    await _apply_result(db, match, team_a_players, team_b_players, winner)
+    match.status = "confirmed"
+    match.confirmed_by = session_user.get("username")
+    match.confirmed_at = datetime.now(timezone.utc)
+    match.dispute_reason = None
+    await db.commit()
+
+    if match.format == "1v1":
+        await recalculate_top_positions(db)
+        await db.commit()
+
+    if settings.discord_webhook_url:
+        winner_players = team_a_players if winner == "a" else team_b_players
+        loser_players = team_b_players if winner == "a" else team_a_players
+        winners = " + ".join(p.username for p in winner_players)
+        losers = " + ".join(p.username for p in loser_players)
+        message = f"{winners} won {match.score_a}-{match.score_b} vs {losers} ({match.format})"
+        if settings.public_base_url:
+            message += f" {settings.public_base_url.rstrip('/')}/match/{match.id}"
+        background_tasks.add_task(_notify_discord, message)
+
+    return {
+        "status": "confirmed",
+        "elo_deltas": {
+            "winner_delta": match.elo_delta_a if winner == "a" else match.elo_delta_b,
+            "loser_delta": match.elo_delta_b if winner == "a" else match.elo_delta_a,
+        },
+    }
+
+
+@router.post("/{match_id}/dispute")
+async def dispute_match(
+    match_id: uuid.UUID,
+    request: Request,
+    body: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+):
+    session_user = request.session.get("user")
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    match = (await db.execute(
+        select(Match)
+        .options(selectinload(Match.team_a).selectinload(Team.members), selectinload(Match.team_b).selectinload(Team.members))
+        .where(Match.id == match_id)
+    )).scalar_one_or_none()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    player, is_admin = await _viewer(db, request)
+    is_participant = bool(player) and str(player.id) in (_members(match.team_a) | _members(match.team_b))
+    if not (is_admin or is_participant):
+        raise HTTPException(status_code=403, detail="Only the players or an admin can dispute")
+    if match.status == "confirmed" and not is_admin:
+        raise HTTPException(status_code=403, detail="An admin must reopen a confirmed match")
+
+    reason = (body or {}).get("reason") if isinstance(body, dict) else None
+    match.status = "disputed"
+    match.dispute_reason = (reason or "").strip()[:500] or None
+    await db.commit()
+    return {"status": "disputed"}
 
 @router.post("/preview")
 async def preview_match(
@@ -510,6 +656,8 @@ async def list_matches(
         selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
     ).order_by(Match.played_at.desc()).limit(limit)
 
+    q = q.where(Match.status == "confirmed")
+
     if format:
         q = q.where(Match.format == format)
 
@@ -567,12 +715,13 @@ async def list_matches(
             winner_name=w_name,
             elo_delta_a=m.elo_delta_a,
             elo_delta_b=m.elo_delta_b,
+            status=m.status,
         ))
     return out
 
 
 @router.get("/{match_id}", response_model=MatchDetail)
-async def get_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_match(match_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)):
     match = (await db.execute(
         select(Match)
         .options(
@@ -593,6 +742,22 @@ async def get_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     b_name = team_name(match.team_b)
     winner_name = a_name if match.winner_team_id == match.team_a_id else b_name if match.winner_team_id else None
 
+    session_user = request.session.get("user")
+    player = None
+    if session_user:
+        player = (await db.execute(select(Player).where(Player.discord_id == session_user["id"]))).scalar_one_or_none()
+    is_admin = bool(player and player.is_admin) or bool(session_user and session_user.get("is_admin")) or bool(session_user and session_user["id"] in settings.admin_discord_ids)
+    is_participant = bool(player) and str(player.id) in (_members(match.team_a) | _members(match.team_b))
+    can_confirm = match.status in ("pending", "disputed") and (is_admin or (is_participant and match.reported_by != (session_user or {}).get("id")))
+    if match.status == "disputed" and not is_admin:
+        can_confirm = False
+    can_dispute = match.status in ("pending", "confirmed") and (is_admin or is_participant)
+
+    try:
+        bans = json.loads(match.operator_bans) if match.operator_bans else []
+    except (ValueError, TypeError):
+        bans = []
+
     return MatchDetail(
         id=match.id,
         format=match.format,
@@ -607,4 +772,15 @@ async def get_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         elo_delta_a=match.elo_delta_a,
         elo_delta_b=match.elo_delta_b,
         tournament_id=match.tournament_id,
+        status=match.status,
+        reported_by_name=match.reported_by_name,
+        confirmed_by=match.confirmed_by,
+        confirmed_at=match.confirmed_at,
+        dispute_reason=match.dispute_reason,
+        evidence_url=match.evidence_url,
+        map_name=match.map_name,
+        side_a=match.side_a,
+        operator_bans=bans,
+        can_confirm=can_confirm,
+        can_dispute=can_dispute,
     )

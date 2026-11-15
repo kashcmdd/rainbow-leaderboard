@@ -39,6 +39,10 @@ class MatchReport(BaseModel):
     team_b_player_names: list[str] = Field(default_factory=list)
     score_a: int = Field(..., ge=0)
     score_b: int = Field(..., ge=0)
+    map_name: Optional[str] = Field(None, max_length=32)
+    side_a: Optional[str] = Field(None, pattern=r"^(attack|defense)$")
+    operator_bans: list[str] = Field(default_factory=list)
+    evidence_url: Optional[str] = Field(None, max_length=512)
 
     def infer_winner(self) -> Optional[str]:
         if self.score_a > self.score_b:
@@ -94,6 +98,7 @@ class MatchOut(BaseModel):
     winner_name: Optional[str] = None
     elo_delta_a: Optional[int] = None
     elo_delta_b: Optional[int] = None
+    status: str = "confirmed"
 
 
 class MatchDetail(BaseModel):
@@ -110,3 +115,20 @@ class MatchDetail(BaseModel):
     elo_delta_a: Optional[int] = None
     elo_delta_b: Optional[int] = None
     tournament_id: Optional[UUID] = None
+    status: str = "confirmed"
+    reported_by_name: Optional[str] = None
+    confirmed_by: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
+    dispute_reason: Optional[str] = None
+    evidence_url: Optional[str] = None
+    map_name: Optional[str] = None
+    side_a: Optional[str] = None
+    operator_bans: list[str] = []
+    can_confirm: bool = False
+    can_dispute: bool = False
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=128)
+    player_ids: Optional[list[UUID]] = None
+    captain_id: Optional[UUID] = None

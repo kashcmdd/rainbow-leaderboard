@@ -7,7 +7,7 @@
         <div>
             <p class="eyebrow">Submit result</p>
             <h1 class="display text-[34px] leading-none sm:text-[40px]">Report match</h1>
-            <p class="micro mt-2">Scores update the ladder immediately</p>
+            <p class="micro mt-2">Player reports wait for the opponent; admin reports apply immediately</p>
         </div>
     </div>
 
@@ -46,6 +46,35 @@
                     <label class="field-label" for="score_b">Score — B</label>
                     <input type="number" id="score_b" name="score_b" min="0" required class="field">
                 </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                    <label class="field-label" for="mapSelect">Map (optional)</label>
+                    <select id="mapSelect" class="field">
+                        <option value="">—</option>
+                        <option>Bank</option><option>Border</option><option>Chalet</option>
+                        <option>Clubhouse</option><option>Coastline</option><option>Consulate</option>
+                        <option>Emerald Plains</option><option>Kafe</option><option>Lair</option>
+                        <option>Nighthaven</option><option>Oregon</option><option>Skyscraper</option>
+                        <option>Stadium</option><option>Theme Park</option><option>Villa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="sideSelect">Side A (optional)</label>
+                    <select id="sideSelect" class="field">
+                        <option value="">—</option>
+                        <option value="attack">Attack</option>
+                        <option value="defense">Defense</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="bansInput">Operator bans (optional)</label>
+                    <input id="bansInput" class="field" placeholder="e.g. Thatcher, Mira" autocomplete="off">
+                </div>
+            </div>
+            <div>
+                <label class="field-label" for="evidenceInput">Evidence link (optional)</label>
+                <input id="evidenceInput" type="url" class="field" placeholder="https://… screenshot or clip" autocomplete="off">
             </div>
             <div class="flex flex-col gap-2 sm:flex-row">
                 <button type="button" id="previewBtn" class="btn w-full py-2.5 sm:w-1/2">Preview ELO</button>
@@ -119,12 +148,20 @@ function validationError(score_a, score_b) {
 }
 
 function submissionBody(format, score_a, score_b) {
+    const bans = document.getElementById('bansInput').value
+        .split(',')
+        .map((b) => b.trim())
+        .filter(Boolean);
     return {
         format,
         team_a_player_names: [...teamA.selected],
         team_b_player_names: [...teamB.selected],
         score_a,
         score_b,
+        map_name: document.getElementById('mapSelect').value || null,
+        side_a: document.getElementById('sideSelect').value || null,
+        operator_bans: bans,
+        evidence_url: document.getElementById('evidenceInput').value.trim() || null,
     };
 }
 
@@ -183,7 +220,9 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
         });
         if (res.ok) {
             const d = await res.json();
-            window.location.href = d.winner_player_id ? '/player/' + d.winner_player_id : '/leaderboard?format=' + format;
+            window.location.href = d.status === 'pending'
+                ? '/match/' + d.match_id
+                : (d.winner_player_id ? '/player/' + d.winner_player_id : '/leaderboard?format=' + format);
         } else {
             const err = await res.json();
             showResult(typeof err.detail === 'string' ? err.detail : JSON.stringify(err), 'error');

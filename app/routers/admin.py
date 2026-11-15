@@ -16,7 +16,7 @@ from app.csrf import csrf_protect
 from app.database import get_db
 from app.deps import require_admin
 from app.models import AuditLog, Match, Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
-from app.ranks import RANKS, get_rank
+from app.ranks import RANKS
 from app.schemas_admin import MatchUpdate, NotesUpdate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -104,6 +104,62 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db), _: dict = Depends(
         "distribution": [{"rank": k, "count": v, "color": rank_color_map.get(k, "#666666")} for k, v in distribution.items() if v > 0],
     }
 
+
+
+
+@router.get("/integrity")
+async def integrity_report(db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
+    now = datetime.now(timezone.utc)
+    week = now - timedelta(days=7)
+    matches = (await db.execute(
+        select(Match)
+        .options(
+            selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
+            selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
+        )
+        .where(Match.status == "confirmed", Match.played_at >= week)
+        .order_by(Match.played_at.desc())
+    )).scalars().all()
+
+    def label(team):
+        if team.name and team.name.upper() != "TBD":
+            return team.name
+        names = [m.player.username for m in team.members if m.player]
+        return " + ".join(names) if names else "Unknown"
+
+    pairs = {}
+    reporters = {}
+    for m in matches:
+        a_name = label(m.team_a)
+        b_name = label(m.team_b)
+        pair = " vs ".join(sorted([a_name, b_name]))
+        winner = a_name if m.winner_team_id == m.team_a_id else b_name
+        rec = pairs.setdefault(pair, {"pair": pair, "count": 0, "recent": 0, "winners": set(), "last": m.played_at})
+        rec["count"] += 1
+        rec["winners"].add(winner)
+        if m.played_at >= now - timedelta(hours=24):
+            rec["recent"] += 1
+        if m.played_at >= rec["last"]:
+            rec["last"] = m.played_at
+        if m.reported_by_name and m.played_at >= now - timedelta(hours=1):
+            reporters[m.reported_by_name] = reporters.get(m.reported_by_name, 0) + 1
+
+    repeats = [
+        {"pair": r["pair"], "count": r["recent"], "last_played": r["last"].isoformat()}
+        for r in pairs.values() if r["recent"] > 3
+    ]
+    lopsided = [
+        {"pair": r["pair"], "matches": r["count"], "winner": next(iter(r["winners"]))}
+        for r in pairs.values() if r["count"] >= 5 and len(r["winners"]) == 1
+    ]
+    volume = [
+        {"reporter": name, "count": count}
+        for name, count in reporters.items() if count > 5
+    ]
+    repeats.sort(key=lambda r: -r["count"])
+    lopsided.sort(key=lambda r: -r["matches"])
+    volume.sort(key=lambda r: -r["count"])
+    return {"repeat_pairings": repeats, "lopsided": lopsided, "reporter_volume": volume, "window_days": 7}
 
 @router.get("/matches")
 async def get_recent_matches(limit: int = 50, db: AsyncSession = Depends(get_db), _: dict = Depends(require_admin)):
@@ -441,63 +497,11 @@ async def get_season(season_id: str, db: AsyncSession = Depends(get_db), _: dict
 
 
 @router.post("/close-season")
-async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
+async def close_season_endpoint(body: dict, db: AsyncSession = Depends(get_db), admin_user: dict = Depends(require_admin), _: None = Depends(csrf_protect)):
+    from app.season_service import close_season
+
     name = body.get("name", "Season")
-    result = await db.execute(
-        select(Season).where(Season.status == "active").limit(1)
-    )
-    current = result.scalar_one_or_none()
-    if not current:
-        current = Season(name=name, status="active")
-        db.add(current)
-        await db.flush()
-
-    # Snapshot all players
-    ratings = (await db.execute(
-        select(Rating)
-        .where(Rating.format == "1v1", Rating.player_id.isnot(None))
-        .order_by(Rating.elo.desc())
-    )).scalars().all()
-
-    for pos, r in enumerate(ratings, 1):
-        p = await db.get(Player, r.player_id)
-        rank_title, rank_color = get_rank(r.elo, r.top_position)
-        db.add(SeasonSnapshot(
-            season_id=current.id,
-            player_id=r.player_id,
-            player_name=p.username if p else "Unknown",
-            elo=r.elo,
-            rank_title=rank_title,
-            rank_color=rank_color,
-            wins=r.wins,
-            losses=r.losses,
-            position=pos,
-        ))
-
-    current.status = "archived"
-    current.end_date = datetime.now(timezone.utc)
-
-    # Create new season with incremented name
-    existing_seasons = await db.execute(select(Season))
-    season_count = len(existing_seasons.scalars().all())
-    new_name = f"{name} {season_count + 1}" if name != "Season" else f"Season {season_count + 1}"
-    new_season = Season(name=new_name, status="active")
-    db.add(new_season)
-
-    # Reset all ratings
-    for r in ratings:
-        r.elo = settings.starting_elo
-        r.wins = 0
-        r.losses = 0
-        r.matches_played = 0
-        r.top_position = None
-        r.rd = settings.starting_rd
-        r.volatility = settings.starting_volatility
-        r.rd_updated_at = datetime.now(timezone.utc)
-
-    await _log_audit(db, admin_user, "close_season", target_name=name)
-    await db.commit()
-    return {"status": "closed", "archived_season": str(current.id), "new_season": str(new_season.id)}
+    return await close_season(db, name, admin_user["username"], admin_user["id"])
 
 
 @router.delete("/players/{player_id}/avatar")

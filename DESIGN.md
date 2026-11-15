@@ -91,6 +91,10 @@ Defined once in `app/static/css/input.css` (`@layer components`) and reused:
   header so the page is one section at a time.
 - Player profiles include a head-to-head record and milestone badges; compare
   uses two native player selects and side-by-side cards.
+- Match pages carry a status panel (pending/disputed) with confirm and dispute
+  actions, plus R6 details and a generated share card.
+- Managed teams have a create form on `/teams` and an in-page roster editor for
+  the captain or an admin; unnamed match shells are adopted, not duplicated.
 
 Templates must not carry raw hex colours. Page-specific `<style>` blocks are
 reserved for layout quirks, not colour.

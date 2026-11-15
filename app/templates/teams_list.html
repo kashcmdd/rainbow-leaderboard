@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Teams — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <p class="eyebrow">Teams</p>
+        <h1 class="display text-[34px] leading-none sm:text-[40px]">Teams</h1>
+        <p class="micro mt-2">Managed rosters · every format</p>
+    </div>
+    <a href="/leaderboard?tab=teams" class="micro hover:text-ink">Team ladder →</a>
+</div>
+
+{% if request.session.get("user") %}
+<div class="panel mb-6 p-5">
+    <div class="section-head"><h2 class="section-title">Create a team</h2><span class="micro" id="rosterCount">0 selected</span></div>
+    <div class="grid gap-3 sm:grid-cols-[1fr_140px_auto]">
+        <input id="newTeamName" class="field" maxlength="128" placeholder="Team name" aria-label="Team name" autocomplete="off">
+        <select id="newTeamFormat" class="field" aria-label="Team format">
+            <option value="2v2">2v2</option>
+            <option value="3v3">3v3</option>
+            <option value="4v4">4v4</option>
+            <option value="5v5">5v5</option>
+        </select>
+        <button id="createTeamBtn" type="button" class="btn btn-pink">Create team</button>
+    </div>
+    <div id="rosterPicker" class="mt-4 grid grid-cols-1 gap-1 sm:grid-cols-2"></div>
+    <p class="micro mt-2">A managed team is reused when the same roster reports a match, so its rating accumulates under one name.</p>
+</div>
+{% endif %}
+
+<div id="teamsList">
+    <div class="panel p-6"><div class="skeleton h-14 w-full"></div></div>
+</div>
+
+<script>
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+}
+
+let allPlayers = [];
+
+async function loadPlayers() {
+    const res = await fetch('/api/players');
+    if (res.ok) allPlayers = await res.json();
+    const picker = document.getElementById('rosterPicker');
+    if (!picker) return;
+    picker.innerHTML = allPlayers.map((p) => `<label class="flex items-center gap-2 border-b py-2" style="border-color:var(--line)">
+        <input type="checkbox" class="checkbox roster-check" value="${p.id}">
+        <span class="text-[13px]">${esc(p.username)}</span></label>`).join('');
+    picker.querySelectorAll('.roster-check').forEach((b) => b.addEventListener('change', updateCount));
+    updateCount();
+}
+
+function wanted() {
+    const el = document.getElementById('newTeamFormat');
+    return el ? parseInt(el.value.split('v')[0], 10) : 0;
+}
+
+function selected() {
+    return [...document.querySelectorAll('.roster-check')].filter((b) => b.checked);
+}
+
+function updateCount() {
+    const el = document.getElementById('rosterCount');
+    if (!el) return;
+    const n = selected().length;
+    el.textContent = n + ' of ' + wanted() + ' selected';
+    el.style.color = n === wanted() ? '' : 'var(--loss)';
+}
+
+async function loadTeams() {
+    const res = await fetch('/api/teams');
+    const teams = res.ok ? await res.json() : [];
+    const managed = teams.filter((t) => t.managed);
+    if (!managed.length) {
+        document.getElementById('teamsList').innerHTML = '<div class="py-10 text-center text-xs text-ink3">No managed teams yet.</div>';
+        return;
+    }
+    document.getElementById('teamsList').innerHTML = managed.map((t) => `<a href="/team/${t.id}" class="flex items-center justify-between gap-3 border-b py-4 transition-colors hover:text-signal" style="border-color:var(--line)">
+        <div class="min-w-0 flex-1">
+            <div class="micro mb-1">${esc(t.format)} · ${t.members.length} ${t.members.length === 1 ? 'player' : 'players'}${t.captain ? ' · Captain ' + esc(t.captain) : ''}</div>
+            <div class="truncate text-[15px] font-semibold text-ink">${esc(t.name)}</div>
+            <div class="mt-1 truncate text-[11px] text-ink3">${t.members.map((m) => esc(m.username)).join(' · ')}</div>
+        </div>
+        <div class="shrink-0 text-right">
+            <span class="rank-chip" style="--rank-color:${t.rank_color}">${esc(t.rank_title)}</span>
+            <div class="num mt-1 text-[16px] font-semibold" style="--rank-color:${t.rank_color}">${t.elo}</div>
+        </div>
+    </a>`).join('');
+}
+
+const createBtn = document.getElementById('createTeamBtn');
+if (createBtn) createBtn.addEventListener('click', async () => {
+    const name = document.getElementById('newTeamName').value.trim();
+    const ids = selected().map((b) => b.value);
+    const need = wanted();
+    if (!name) { alert('Give the team a name.'); return; }
+    if (ids.length !== need) { alert('Select exactly ' + need + ' players.'); return; }
+    createBtn.disabled = true;
+    const res = await window.apiFetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, format: document.getElementById('newTeamFormat').value, player_ids: ids }),
+    });
+    if (res.ok) {
+        const d = await res.json();
+        window.location.href = '/team/' + d.id;
+    } else {
+        const err = await res.json().catch(() => ({}));
+        createBtn.disabled = false;
+        alert(err.detail || 'Could not create the team.');
+    }
+});
+
+const formatSelect = document.getElementById('newTeamFormat');
+if (formatSelect) formatSelect.addEventListener('change', updateCount);
+
+loadPlayers();
+loadTeams();
+</script>
+{% endblock %}

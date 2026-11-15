@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     discord_client_secret: str = ""
     discord_redirect_uri: str = ""
     admin_discord_ids: list[str] = []
+    require_match_confirmation: bool = True
+    auto_close_seasons: bool = False
+    season_close_hour: int = 4
+    season_length_days: int = 90
     secret_key: str = ""
 
     model_config = SettingsConfigDict(

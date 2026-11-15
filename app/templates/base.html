@@ -10,7 +10,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
     <meta property="og:description" content="Competitive Rainbow Six ladder with ELO ratings, match history, seasons and tournaments.">
-    <meta property="og:image" content="{{ (public_base_url or (request.base_url|string)).rstrip('/') }}/static/og.png">
+    <meta property="og:image" content="{% block og_image %}{{ (public_base_url or (request.base_url|string)).rstrip('/') }}/static/og.png{% endblock %}">
     <meta name="twitter:card" content="summary_large_image">
     <script>
         (function () {
@@ -95,6 +95,7 @@
             <button id="sheetClose" type="button" class="text-[11px] font-medium uppercase tracking-wider text-ink3" aria-label="Close menu">Close</button>
         </div>
         <nav class="flex flex-col">
+            <a href="/teams" class="sheet-link{% if path == '/teams' %} is-active{% endif %}">Teams</a>
             <a href="/ratings" class="sheet-link{% if path == '/ratings' %} is-active{% endif %}">How ratings work</a>
             <a href="/compare" class="sheet-link{% if path == '/compare' %} is-active{% endif %}">Compare</a>
             {% if request.session.get("user") %}

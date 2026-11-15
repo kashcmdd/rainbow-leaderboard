@@ -375,6 +375,251 @@ class TestHeadToHead:
         assert res.json() == {"opponents": []}
 
 
+
+
+def _session_client(id_, username, is_admin=False):
+    import json as _json
+
+    from httpx import ASGITransport, AsyncClient
+    from itsdangerous import TimestampSigner
+    from starlette.middleware.sessions import b64encode
+
+    from main import app
+
+    session = {"user": {"id": id_, "username": username, "avatar": None, "is_admin": is_admin}}
+    signer = TimestampSigner(str(settings.secret_key))
+    data = b64encode(_json.dumps(session, separators=(",", ":")).encode("utf-8"))
+    cookie = signer.sign(data).decode("utf-8")
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    client.cookies.set("session", cookie)
+    return client
+
+
+async def _csrf(client):
+    token = (await client.get("/api/csrf/token")).json()["csrf_token"]
+    return {"X-CSRF-Token": token, "Content-Type": "application/json"}
+
+
+class TestMatchConfirmation:
+    async def test_player_report_waits_for_opponent(self, client, admin_headers, admin_allowlist):
+        a = await _create_player(client, admin_headers, "confirm-a")
+        b = await _create_player(client, admin_headers, "confirm-b")
+        await client.patch(f"/api/players/{a['id']}", json={"discord_id": "confirm-reporter"}, headers=admin_headers)
+        await client.patch(f"/api/players/{b['id']}", json={"discord_id": "confirm-opponent"}, headers=admin_headers)
+
+        reporter = _session_client("confirm-reporter", "Reporter")
+        opponent = _session_client("confirm-opponent", "Opponent")
+        try:
+            headers = await _csrf(reporter)
+            report = await reporter.post(
+                "/api/matches",
+                json={
+                    "format": "1v1",
+                    "team_a_player_names": ["confirm-a"],
+                    "team_b_player_names": ["confirm-b"],
+                    "score_a": 3,
+                    "score_b": 1,
+                },
+                headers=headers,
+            )
+            assert report.status_code == 200
+            data = report.json()
+            assert data["status"] == "pending"
+            match_id = data["match_id"]
+
+            detail = await reporter.get(f"/api/matches/{match_id}")
+            assert detail.json()["status"] == "pending"
+            assert detail.json()["can_confirm"] is False
+            assert detail.json()["elo_delta_a"] is None
+
+            # No rating moved yet.
+            before = await client.get(f"/api/players/{a['id']}")
+            assert before.json()["ratings"][0]["elo"] == 500
+
+            opponent_headers = await _csrf(opponent)
+            confirm = await opponent.post(f"/api/matches/{match_id}/confirm", headers=opponent_headers)
+            assert confirm.status_code == 200
+            assert confirm.json()["status"] == "confirmed"
+
+            after = await client.get(f"/api/players/{a['id']}")
+            assert after.json()["ratings"][0]["elo"] > 500
+            detail = await client.get(f"/api/matches/{match_id}")
+            assert detail.json()["status"] == "confirmed"
+            assert detail.json()["confirmed_by"] == "Opponent"
+        finally:
+            await reporter.aclose()
+            await opponent.aclose()
+
+    async def test_dispute_stops_the_result(self, client, admin_headers, admin_allowlist):
+        a = await _create_player(client, admin_headers, "dispute-a")
+        b = await _create_player(client, admin_headers, "dispute-b")
+        await client.patch(f"/api/players/{a['id']}", json={"discord_id": "dispute-reporter"}, headers=admin_headers)
+        await client.patch(f"/api/players/{b['id']}", json={"discord_id": "dispute-opponent"}, headers=admin_headers)
+
+        reporter = _session_client("dispute-reporter", "Reporter")
+        opponent = _session_client("dispute-opponent", "Opponent")
+        try:
+            report = await reporter.post(
+                "/api/matches",
+                json={"format": "1v1", "team_a_player_names": ["dispute-a"], "team_b_player_names": ["dispute-b"], "score_a": 3, "score_b": 1},
+                headers=await _csrf(reporter),
+            )
+            match_id = report.json()["match_id"]
+            dispute = await opponent.post(
+                f"/api/matches/{match_id}/dispute",
+                json={"reason": "Wrong score"},
+                headers=await _csrf(opponent),
+            )
+            assert dispute.status_code == 200
+            detail = await client.get(f"/api/matches/{match_id}")
+            assert detail.json()["status"] == "disputed"
+            assert detail.json()["dispute_reason"] == "Wrong score"
+        finally:
+            await reporter.aclose()
+            await opponent.aclose()
+
+
+class TestMatchMetadata:
+    async def test_r6_fields_round_trip(self, client, admin_headers):
+        await _create_player(client, admin_headers, "meta-a")
+        await _create_player(client, admin_headers, "meta-b")
+        report = await client.post(
+            "/api/matches",
+            json={
+                "format": "1v1",
+                "team_a_player_names": ["meta-a"],
+                "team_b_player_names": ["meta-b"],
+                "score_a": 3,
+                "score_b": 2,
+                "map_name": "Oregon",
+                "side_a": "attack",
+                "operator_bans": ["Thatcher", "Mira"],
+                "evidence_url": "https://example.com/clip",
+            },
+            headers=admin_headers,
+        )
+        assert report.status_code == 200
+        detail = await client.get(f"/api/matches/{report.json()['match_id']}")
+        body = detail.json()
+        assert body["map_name"] == "Oregon"
+        assert body["side_a"] == "attack"
+        assert body["operator_bans"] == ["Thatcher", "Mira"]
+        assert body["evidence_url"] == "https://example.com/clip"
+
+
+class TestManagedTeams:
+    async def test_create_manage_and_reuse(self, client, admin_headers):
+        a = await _create_player(client, admin_headers, "team-a1")
+        b = await _create_player(client, admin_headers, "team-a2")
+        await _create_player(client, admin_headers, "team-b1")
+        await _create_player(client, admin_headers, "team-b2")
+
+        created = await client.post(
+            "/api/teams",
+            json={"name": "Managed Duo", "format": "2v2", "player_ids": [a["id"], b["id"]]},
+            headers=admin_headers,
+        )
+        assert created.status_code == 200
+        team_id = created.json()["id"]
+
+        listed = await client.get("/api/teams")
+        row = next(t for t in listed.json() if t["id"] == team_id)
+        assert row["name"] == "Managed Duo"
+        assert row["managed"] is True
+        assert {m["username"] for m in row["members"]} == {"team-a1", "team-a2"}
+
+        detail = await client.get(f"/api/teams/{team_id}")
+        assert detail.json()["can_manage"] is True
+        assert detail.json()["captain"] in {"team-a1", "team-a2"}
+
+        patch = await client.patch(
+            f"/api/teams/{team_id}",
+            json={"name": "Managed Duo Prime"},
+            headers=admin_headers,
+        )
+        assert patch.status_code == 200
+
+        # Reporting the same roster reuses the managed team, not a new shell.
+        report = await client.post(
+            "/api/matches",
+            json={
+                "format": "2v2",
+                "team_a_player_names": ["team-a1", "team-a2"],
+                "team_b_player_names": ["team-b1", "team-b2"],
+                "score_a": 3,
+                "score_b": 1,
+            },
+            headers=admin_headers,
+        )
+        assert report.status_code == 200
+        match = await client.get(f"/api/matches/{report.json()['match_id']}")
+        assert match.json()["team_a_name"] == "Managed Duo Prime"
+
+        deactivate = await client.delete(f"/api/teams/{team_id}", headers=admin_headers)
+        assert deactivate.status_code == 200
+        listed = await client.get("/api/teams")
+        assert team_id not in {t["id"] for t in listed.json()}
+
+
+
+
+class TestIntegrity:
+    async def test_flags_repeat_pairings_and_lopsided_records(self, client, admin_headers, admin_allowlist):
+        await _create_player(client, admin_headers, "integrity-a")
+        await _create_player(client, admin_headers, "integrity-b")
+        for score_a, score_b in ((3, 1), (3, 2), (3, 0), (2, 0), (4, 1)):
+            res = await _report(client, admin_headers, "integrity-a", "integrity-b", score_a, score_b)
+            assert res.status_code == 200
+
+        data = (await client.get("/api/admin/integrity")).json()
+        assert any(row["count"] >= 5 for row in data["repeat_pairings"])
+        assert any(row["matches"] >= 5 for row in data["lopsided"])
+
+
+class TestSeasonAutoclose:
+    async def test_close_due_season_resets_and_snapshots(self, client, admin_headers):
+        from app.season_service import close_season
+
+        player = await _create_player(client, admin_headers, "season-auto")
+        async with async_session() as db:
+            db.add(Season(name="Due Season", status="active", end_date=datetime.now(timezone.utc) - timedelta(days=1)))
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == uuid.UUID(player["id"]), Rating.format == "1v1")
+            )).scalar_one()
+            rating.elo = 1200
+            rating.wins = 10
+            rating.losses = 2
+            await db.commit()
+            result = await close_season(db, "Due Season", "Scheduler", "system")
+            assert result["status"] == "closed"
+
+        async with async_session() as db:
+            archived = (await db.execute(select(Season).where(Season.name == "Due Season"))).scalar_one()
+            assert archived.status == "archived"
+            next_season = (await db.execute(select(Season).where(Season.status == "active"))).scalar_one()
+            assert next_season.end_date is not None
+            snapshots = (await db.execute(
+                select(SeasonSnapshot).where(SeasonSnapshot.season_id == archived.id)
+            )).scalars().all()
+            assert len(snapshots) == 1
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == uuid.UUID(player["id"]), Rating.format == "1v1")
+            )).scalar_one()
+            assert rating.elo == 500
+            assert rating.wins == 0
+
+
+class TestShareCard:
+    async def test_match_card_is_a_png(self, client, admin_headers):
+        await _create_player(client, admin_headers, "card-a")
+        await _create_player(client, admin_headers, "card-b")
+        report = await _report(client, admin_headers, "card-a", "card-b")
+        res = await client.get(f"/og/match/{report.json()['match_id']}.png")
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "image/png"
+        assert res.content.startswith(b"\x89PNG")
+
+
 class TestDevLogin:
     async def test_disabled_by_default(self, anon_client, monkeypatch):
         monkeypatch.setattr(settings, "dev_login_discord_id", "")

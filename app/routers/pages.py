@@ -98,6 +98,11 @@ async def compare_page(request: Request):
     return templates.TemplateResponse(request, "compare.html")
 
 
+@router.get("/teams", response_class=HTMLResponse)
+async def teams_page(request: Request):
+    return templates.TemplateResponse(request, "teams_list.html")
+
+
 @router.get("/tournaments", response_class=HTMLResponse)
 async def tournaments_list_page(request: Request):
     return templates.TemplateResponse(request, "tournaments_list.html")

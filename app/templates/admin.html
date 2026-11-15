@@ -220,6 +220,9 @@ async function loadAdmin() {
   let auditLog = [];
   try { const ar = await fetch('/api/admin/audit-log?limit=100'); if (ar.ok) auditLog = await ar.json(); } catch {}
 
+  let integrity = { repeat_pairings: [], lopsided: [], reporter_volume: [] };
+  try { const ir = await fetch('/api/admin/integrity'); if (ir.ok) integrity = await ir.json(); } catch {}
+
   allPlayers = await (await fetch('/api/players')).json();
 
   allRatingData = {};
@@ -234,6 +237,7 @@ async function loadAdmin() {
   renderStats(stats);
   renderDistribution(stats);
   renderManagement();
+  renderIntegrity(integrity);
   renderAddPlayer();
   renderPlayerTable();
   renderAuditLog(auditLog);
@@ -299,6 +303,36 @@ function renderDistribution(s) {
     <div class="flex h-3 w-full overflow-hidden rounded-sm" style="background:var(--panel-2);">${bar}</div>
     <div class="mt-3">${legend}</div>
   </div>`;
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+}
+
+function renderIntegrity(data) {
+  const repeat = data.repeat_pairings || [];
+  const lopsided = data.lopsided || [];
+  const volume = data.reporter_volume || [];
+  const empty = !repeat.length && !lopsided.length && !volume.length;
+  let html = `<div class="card p-5 mb-5 animate-slide-up" id="integritySection">
+    <div class="section-head mb-3"><h2 class="text-sm font-bold text-ink">Integrity checks</h2><span class="micro">Last 7 days</span></div>`;
+  if (empty) {
+    html += '<p class="text-xs text-ink3">No anomalies found. Repeated pairings, one-sided records, and reporter bursts appear here.</p>';
+  } else {
+    if (repeat.length) {
+      html += '<div class="mb-4"><div class="micro mb-2">Repeated pairings · 24h</div><div class="space-y-1">' +
+        repeat.map((r) => `<div class="flex items-center justify-between gap-3 border-b py-1.5" style="border-color:var(--line)"><span class="truncate text-[12px] text-ink2">${window.esc(r.pair)}</span><span class="num shrink-0 text-[11px]" style="color:var(--warn)">${r.count} in 24h</span></div>`).join('') +
+        '</div></div>';
+    }
+    if (lopsided.length) {
+      html += '<div class="mb-4"><div class="micro mb-2">One-sided records</div><div class="space-y-1">' +
+        lopsided.map((r) => `<div class="flex items-center justify-between gap-3 border-b py-1.5" style="border-color:var(--line)"><span class="truncate text-[12px] text-ink2">${window.esc(r.pair)}</span><span class="micro shrink-0">${window.esc(r.winner)} · ${r.matches}</span></div>`).join('') +
+        '</div></div>';
+    }
+    if (volume.length) {
+      html += '<div><div class="micro mb-2">Reporter bursts · 1h</div><div class="space-y-1">' +
+        volume.map((r) => `<div class="flex items-center justify-between gap-3 border-b py-1.5" style="border-color:var(--line)"><span class="text-[12px] text-ink2">${window.esc(r.reporter)}</span><span class="num text-[11px]" style="color:var(--warn)">${r.count} reports</span></div>`).join('') +
+        '</div></div>';
+    }
+  }
+  html += '</div>';
   $('adminContent').insertAdjacentHTML('beforeend', html);
 }
 
@@ -943,7 +977,7 @@ function refreshTable() {
 
 function setupAdminTabs() {
   const groups = {
-    overview: ['statsRow', 'distSection', 'mgmtSection'],
+    overview: ['statsRow', 'distSection', 'mgmtSection', 'integritySection'],
     players: ['addPlayerSection', 'bulkImportSection', 'playerTableCard', 'matchesSection'],
     tournaments: ['tournamentSection'],
     seasons: ['seasonSection'],

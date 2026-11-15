@@ -14,8 +14,11 @@ Public surfaces:
   deviation/provisional state, progress to the next tier, head-to-head record,
   milestones, ELO trend, win rate, season history, match history.
 - **Team** — roster, team rating and recent results for a repeated lineup.
-- **Match** — shareable single-match report with both sides and ELO deltas.
+- **Match** — shareable single-match report with both sides, ELO deltas,
+  confirmation state, map/side/operator bans and an evidence link.
 - **Compare** — two-player head-to-head.
+- **Teams** — managed rosters with a captain; named teams are reused when the
+  same lineup reports a match.
 - **Seasons** — archived 1v1 standings snapshots and champions (the season
   ladder is 1v1; other formats keep their ratings across seasons).
 - **Ratings** — a plain-language explanation of the rating, provisional state,
@@ -27,9 +30,12 @@ Public surfaces:
 Authenticated surfaces:
 
 - **Report match** — preview the ELO swing, guard against double submits, then
-  submit a result. Reporting is rate-limited per user.
+  submit a result. Player reports wait for the opponent; admin reports apply
+  immediately. Optional map, side, bans and evidence. Rate-limited per user.
 - **Profile** — redirects to the signed-in player's page.
-- **Admin** — player management, ratings, seasons, tournaments, audit log.
+- **Admin** — player management, ratings, seasons, tournaments, audit log,
+  and integrity checks for repeated pairings, one-sided records and reporter
+  bursts.
 
 ## Who uses it
 

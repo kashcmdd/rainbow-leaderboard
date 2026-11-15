@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Match — {{ site_name }}{% endblock %}
+{% block og_title %}{{ site_name }} — Match report{% endblock %}
+{% block og_image %}{{ (public_base_url or (request.base_url|string)).rstrip('/') }}/og/match/{{ match_id }}.png{% endblock %}
 {% block content %}
 
 <div class="page-head">
@@ -8,7 +10,7 @@
         <h1 class="display text-[32px] leading-none sm:text-[38px]" id="matchTitle">Match</h1>
         <p class="micro mt-2" id="matchMeta">Loading…</p>
     </div>
-    <a href="/leaderboard" class="micro hover:text-ink">← Leaderboard</a>
+    <div class="flex flex-wrap items-center gap-4"><a href="/og/match/{{ match_id }}.png" class="micro hover:text-ink">Share card</a><a href="/leaderboard" class="micro hover:text-ink">← Leaderboard</a></div>
 </div>
 
 <div id="matchRoot">
@@ -55,9 +57,9 @@ async function loadMatch() {
     const aWon = decided && m.winner_name === m.team_a_name;
     const date = new Date(m.played_at).toLocaleString();
     document.getElementById('matchTitle').textContent = `${m.team_a_name} vs ${m.team_b_name}`;
-    document.getElementById('matchMeta').textContent = `${m.format.toUpperCase()} · ${date}`;
+    document.getElementById('matchMeta').textContent = `${m.format.toUpperCase()} · ${date} · ${m.status.toUpperCase()}`;
 
-    root.innerHTML = `
+    root.innerHTML = statusPanel(m) + `
         <section class="border-y" style="border-color:var(--line)">
             <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pt-6 pb-5 sm:gap-6 sm:pt-10 sm:pb-6">
                 ${side(m.team_a_name, m.team_a_players, m.elo_delta_a, aWon, decided)}
@@ -70,18 +72,82 @@ async function loadMatch() {
             <div class="grid grid-cols-2 gap-px border-t sm:grid-cols-4" style="border-color:var(--line);background:var(--line)">
                 ${detailCell('Format', esc(m.format.toUpperCase()))}
                 ${detailCell('Match ID', '<span class="text-[11px]">' + esc(String(MATCH_ID).slice(0, 8)) + '</span>')}
-                ${detailCell('ELO swing', Math.abs(m.elo_delta_a || 0) + Math.abs(m.elo_delta_b || 0) + ' pts')}
-                ${detailCell('Ladder', m.tournament_id ? 'Tournament' : 'Open')}
+                ${detailCell('ELO swing', m.status === 'confirmed' ? Math.abs(m.elo_delta_a || 0) + Math.abs(m.elo_delta_b || 0) + ' pts' : 'Pending')}
+                ${detailCell('Map', esc(m.map_name || (m.tournament_id ? 'Tournament' : 'Open')))}
             </div>
+            ${(m.side_a || (m.operator_bans && m.operator_bans.length)) ? `<div class="flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-2.5 sm:px-8" style="border-color:var(--line)">
+                ${m.side_a ? `<span class="micro">Side A: <span class="text-ink2">${esc(m.side_a)}</span></span>` : ''}
+                ${m.operator_bans && m.operator_bans.length ? `<span class="micro">Bans: <span class="text-ink2">${esc(m.operator_bans.join(', '))}</span></span>` : ''}
+                ${m.evidence_url ? `<a href="${esc(m.evidence_url)}" target="_blank" rel="noopener" class="micro text-signal hover:underline">Evidence</a>` : ''}
+            </div>` : ''}
             ${m.tournament_id ? `<div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t px-4 py-2.5 sm:px-8 sm:py-3" style="border-color:var(--line)">
                 <span class="micro">Tournament match</span>
                 <a href="/tournament/${m.tournament_id}" class="micro text-signal hover:underline">View bracket →</a>
             </div>` : ''}
         </section>`;
+    wireStatus(m);
 }
 
 function detailCell(label, value) {
     return '<div class="bg-bg px-4 py-3"><div class="stat-label">' + label + '</div><div class="num mt-1 text-[14px] font-semibold text-ink">' + value + '</div></div>';
+}
+
+function statusPanel(m) {
+    if (m.status === 'confirmed') return '';
+    const disputed = m.status === 'disputed';
+    let actions = '';
+    if (m.can_confirm || m.can_dispute) {
+        actions = '<div class="mt-3 flex flex-wrap gap-2">' +
+            (m.can_confirm ? '<button id="confirmMatchBtn" type="button" class="btn btn-sm btn-pink">Confirm result</button>' : '') +
+            (m.can_dispute ? '<button id="disputeMatchBtn" type="button" class="btn btn-sm">Dispute</button>' : '') +
+            '</div>' +
+            '<div id="disputeForm" class="mt-2 hidden">' +
+            '<input id="disputeReason" class="field" maxlength="500" placeholder="What is wrong with this result?">' +
+            '<button id="sendDisputeBtn" type="button" class="btn btn-sm mt-2">Send dispute</button></div>';
+    } else {
+        actions = '<p class="micro mt-2">' + (disputed ? 'An admin will review this result.' : 'Waiting for your opponent to confirm.') + '</p>';
+    }
+    if (!disputed && !m.can_confirm && m.can_dispute) {
+        actions += '<p class="micro mt-2">Waiting for your opponent to confirm.</p>';
+    }
+    const reason = disputed && m.dispute_reason ? '<p class="mt-2 text-[12px]" style="color:var(--loss)">' + esc(m.dispute_reason) + '</p>' : '';
+    return '<div class="panel-2 mt-4 p-4"><div class="flex flex-wrap items-center gap-2">' +
+        '<span class="badge ' + (disputed ? 'badge-loss' : 'badge-warn') + '">' + (disputed ? 'Disputed' : 'Pending confirmation') + '</span>' +
+        '<span class="micro">Reported by ' + esc(m.reported_by_name || 'a player') + '</span></div>' +
+        reason + actions + '</div>';
+}
+
+function wireStatus(m) {
+    const confirmBtn = document.getElementById('confirmMatchBtn');
+    if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Confirming…';
+        const res = await window.apiFetch('/api/matches/' + MATCH_ID + '/confirm', { method: 'POST' });
+        if (res.ok) location.reload();
+        else {
+            const err = await res.json().catch(() => ({}));
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm result';
+            alert(err.detail || 'Could not confirm this result.');
+        }
+    });
+    const disputeBtn = document.getElementById('disputeMatchBtn');
+    const form = document.getElementById('disputeForm');
+    if (disputeBtn && form) disputeBtn.addEventListener('click', () => form.classList.remove('hidden'));
+    const send = document.getElementById('sendDisputeBtn');
+    if (send) send.addEventListener('click', async () => {
+        send.disabled = true;
+        const res = await window.apiFetch('/api/matches/' + MATCH_ID + '/dispute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: document.getElementById('disputeReason').value }),
+        });
+        if (res.ok) location.reload();
+        else {
+            send.disabled = false;
+            alert('Could not send the dispute.');
+        }
+    });
 }
 
 loadMatch();

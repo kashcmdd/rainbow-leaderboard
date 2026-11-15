@@ -184,7 +184,7 @@ async def get_player_h2h(player_id: uuid.UUID, db: AsyncSession = Depends(get_db
             selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
             selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
         )
-        .where(or_(Match.team_a_id.in_(team_ids), Match.team_b_id.in_(team_ids)))
+        .where(Match.status == "confirmed", or_(Match.team_a_id.in_(team_ids), Match.team_b_id.in_(team_ids)))
         .order_by(Match.played_at.desc())
     )).scalars().all()
 

@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/stats", tags=["stats"])
 @router.get("")
 async def get_stats(response: Response, db: AsyncSession = Depends(get_db)):
     player_count = (await db.execute(select(func.count(Player.id)))).scalar() or 0
-    match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
+    match_count = (await db.execute(select(func.count(Match.id)).where(Match.status == "confirmed"))).scalar() or 0
 
     # The site's headline ladder is 1v1; a 3v3 rating must not appear as the
     # "top player" on the landing page.
