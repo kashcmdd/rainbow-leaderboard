@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -88,8 +88,9 @@ class Rating(Base):
     losses = Column(Integer, default=0)
     top_position = Column(Integer, nullable=True)
     streak = Column(Integer, default=0)
-    is_decaying = Column(Boolean, default=False)
-    decay_applied = Column(Integer, default=0, server_default="0", nullable=False)
+    rd = Column(Float, default=350.0, server_default="350", nullable=False)
+    volatility = Column(Float, default=0.06, server_default="0.06", nullable=False)
+    rd_updated_at = Column(DateTime(timezone=True), default=utcnow)
     last_active = Column(DateTime(timezone=True), nullable=True)
     last_updated = Column(DateTime(timezone=True), default=utcnow)
 

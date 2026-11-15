@@ -173,8 +173,9 @@ async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin
             r.wins = 0
             r.losses = 0
             r.matches_played = 0
-            r.decay_applied = 0
-            r.is_decaying = False
+            r.rd = settings.starting_rd
+            r.volatility = settings.starting_volatility
+            r.rd_updated_at = datetime.now(timezone.utc)
     await db.commit()
     return {"status": "ok", "reset_count": len(player_ids)}
 
@@ -249,8 +250,9 @@ async def reset_player_stats(player_id: uuid.UUID, db: AsyncSession = Depends(ge
         r.wins = 0
         r.losses = 0
         r.matches_played = 0
-        r.decay_applied = 0
-        r.is_decaying = False
+        r.rd = settings.starting_rd
+        r.volatility = settings.starting_volatility
+        r.rd_updated_at = datetime.now(timezone.utc)
     await _log_audit(db, admin_user, "reset_player_stats", target_id=player_id)
     await db.commit()
     return {"status": "reset"}
@@ -328,9 +330,8 @@ async def adjust_elo(player_id: uuid.UUID, body: dict, db: AsyncSession = Depend
 
     old_elo = rating.elo
     rating.elo = max(rating.elo + amount, 0)
-    rating.decay_applied = 0
-    rating.is_decaying = False
     from datetime import datetime, timezone
+    rating.rd_updated_at = datetime.now(timezone.utc)
     rating.last_active = datetime.now(timezone.utc)
     await _log_audit(db, admin_user, "elo_adjustment",
                      target_id=player_id, target_name=player.username,
@@ -490,8 +491,9 @@ async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_use
         r.losses = 0
         r.matches_played = 0
         r.top_position = None
-        r.decay_applied = 0
-        r.is_decaying = False
+        r.rd = settings.starting_rd
+        r.volatility = settings.starting_volatility
+        r.rd_updated_at = datetime.now(timezone.utc)
 
     await _log_audit(db, admin_user, "close_season", target_name=name)
     await db.commit()

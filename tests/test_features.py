@@ -207,8 +207,6 @@ class TestTeamDeltas:
         # The lowest-rated winner should gain more than the highest-rated one.
         assert deltas[a1["id"]] > deltas[a2["id"]] > 0
         assert deltas[b1["id"]] < 0 and deltas[b2["id"]] < 0
-        # Team-level conservation, allowing rounding.
-        assert abs(sum(deltas.values())) <= 2
 
         detail = (await client.get(f"/api/matches/{match_id}")).json()
         expected_average = round((deltas[a1["id"]] + deltas[a2["id"]]) / 2)
@@ -351,49 +349,74 @@ class TestStartingRating:
         rating = next(r for r in detail["ratings"] if r["format"] == "1v1")
         assert rating["elo"] == settings.starting_elo
 
+        async with async_session() as db:
+            stored = (await db.execute(
+                select(Rating).where(
+                    Rating.player_id == uuid.UUID(player["id"]),
+                    Rating.format == "1v1",
+                )
+            )).scalar_one()
+            assert stored.rd == settings.starting_rd
+            assert stored.volatility == settings.starting_volatility
 
-class TestDecay:
-    async def test_decay_is_idempotent_and_historied(self, client, admin_headers):
-        player = await _create_player(client, admin_headers, "decay-player")
+
+class TestGlickoIntegration:
+    async def test_match_moves_rating_and_shrinks_rd(self, client, admin_headers):
+        a = await _create_player(client, admin_headers, "glicko-a")
+        b = await _create_player(client, admin_headers, "glicko-b")
+        report = await _report(client, admin_headers, "glicko-a", "glicko-b", 3, 1)
+        assert report.status_code == 200
+
+        async with async_session() as db:
+            rows = (await db.execute(
+                select(Rating).where(
+                    Rating.player_id.in_([uuid.UUID(a["id"]), uuid.UUID(b["id"])]),
+                    Rating.format == "1v1",
+                )
+            )).scalars().all()
+            by_name = {str(r.player_id): r for r in rows}
+
+        winner = by_name[a["id"]]
+        loser = by_name[b["id"]]
+        assert winner.elo > settings.starting_elo
+        assert loser.elo < settings.starting_elo
+        assert winner.rd < settings.starting_rd
+        assert loser.rd < settings.starting_rd
+
+
+class TestRdInflation:
+    async def test_inactivity_inflates_rd_not_rating(self, client, admin_headers):
+        player = await _create_player(client, admin_headers, "rd-player")
         pid = uuid.UUID(player["id"])
 
         async with async_session() as db:
             rating = (await db.execute(
                 select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
             )).scalar_one()
-            rating.elo = 2150
+            rating.elo = 1800
+            rating.rd = 80
+            rating.volatility = 0.06
             rating.last_active = datetime.now(timezone.utc) - timedelta(days=40)
+            rating.rd_updated_at = datetime.now(timezone.utc) - timedelta(days=40)
             await db.commit()
 
-        from main import run_elo_decay
-        await run_elo_decay()
+        from main import run_rd_inflation
+        await run_rd_inflation()
 
         async with async_session() as db:
             rating = (await db.execute(
                 select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
             )).scalar_one()
-            first = rating.elo
-            assert first == 2050  # 100 from 2150; decay may cross a tier now
-            assert rating.decay_applied == 100
-            history = (await db.execute(
-                select(RatingHistory).where(
-                    RatingHistory.rating_id == rating.id,
-                    RatingHistory.match_id.is_(None),
-                )
-            )).scalars().all()
-            assert len(history) == 1
-            assert history[0].elo_before == 2150
-            assert history[0].elo_after == 2050
+            assert rating.elo == 1800, "inactivity must not decay the rating"
+            assert rating.rd > 80
+            first_rd = rating.rd
 
-        await run_elo_decay()
+        await run_rd_inflation()
         async with async_session() as db:
             rating = (await db.execute(
                 select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
             )).scalar_one()
-            assert rating.elo == first, "a second run must not decay again"
-
-        rows = (await client.get(f"/api/players/{pid}/history")).json()
-        assert any(row["format"] == "decay" for row in rows)
+            assert rating.rd == first_rd, "a second same-day run must not inflate again"
 
 
 class TestAdminAccess:

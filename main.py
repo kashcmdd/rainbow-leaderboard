@@ -17,7 +17,8 @@ from app.routers import activity, admin, auth, leaderboard, matches, pages, play
 scheduler = AsyncIOScheduler()
 
 
-async def run_elo_decay():
+async def run_rd_inflation():
+    """Inactive players keep their rating but their RD grows."""
     import logging
     logger = logging.getLogger(__name__)
     try:
@@ -25,74 +26,36 @@ async def run_elo_decay():
 
         from sqlalchemy import select
 
+        from app import glicko2
         from app.database import async_session
-        from app.models import AuditLog, Rating, RatingHistory
+        from app.models import Rating
 
         now = datetime.now(timezone.utc)
         async with async_session() as db:
-            cutoff = now - timedelta(days=settings.decay_days)
             result = await db.execute(
                 select(Rating).where(
-                    Rating.last_active.isnot(None),
-                    Rating.last_active < cutoff,
-                    Rating.player_id.isnot(None),
+                    Rating.rd_updated_at.isnot(None),
+                    Rating.rd_updated_at < now - timedelta(days=1),
                 )
             )
-            ratings = result.scalars().all()
-            for r in ratings:
-                inactive_days = (now - r.last_active).days
-                if inactive_days <= settings.decay_days:
+            for rating in result.scalars().all():
+                days = (now - rating.rd_updated_at).days
+                if days <= 0:
                     continue
-
-                # Total decay owed since the player was last active, capped.
-                # decay_applied makes this idempotent across daily runs.
-                target_decay = min(
-                    (inactive_days - settings.decay_days) * settings.decay_per_day,
-                    settings.max_decay,
-                )
-                applied = r.decay_applied or 0
-                increment = target_decay - applied
-                if increment <= 0:
-                    continue
-
-                before = r.elo
-                r.elo = max(before - increment, settings.rating_floor)
-                r.decay_applied = target_decay
-                actual_decay = before - r.elo
-                if actual_decay > 0:
-                    r.is_decaying = True
-                    db.add(RatingHistory(
-                        rating_id=r.id,
-                        player_id=r.player_id,
-                        team_id=None,
-                        elo_before=before,
-                        elo_after=r.elo,
-                        match_id=None,
-                        changed_at=now,
-                    ))
-                    db.add(AuditLog(
-                        admin_id="system",
-                        admin_name="System",
-                        action="elo_decay",
-                        target_id=str(r.player_id) if r.player_id else None,
-                        details=f"Decayed {actual_decay} ELO after {inactive_days} days inactive",
-                    ))
-            await db.commit()
-
-            # Recalculate exclusive top positions for every rated format
-            from app.ranks import recalculate_top_positions
-            for fmt in settings.format_k_multipliers:
-                await recalculate_top_positions(db, fmt)
+                inflated = glicko2.inflate_rd(rating.rd or glicko2.DEFAULT_RD, days)
+                if inflated > (rating.rd or 0):
+                    rating.rd = inflated
+                rating.rd_updated_at = now
             await db.commit()
     except Exception as e:
-        logger.error("ELO decay job failed: %s", e, exc_info=True)
+        logger.error("RD inflation job failed: %s", e, exc_info=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.schema import ensure_schema
     await ensure_schema()
-    scheduler.add_job(run_elo_decay, 'interval', hours=24, id='elo_decay', max_instances=1, misfire_grace_time=3600)
+    scheduler.add_job(run_rd_inflation, 'interval', hours=24, id='rd_inflation', max_instances=1, misfire_grace_time=3600)
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)

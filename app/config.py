@@ -4,23 +4,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://rainbow:rainbow@localhost:5432/rainbow"
     starting_elo: int = 500
-    base_k: int = 32
-    new_player_k: int = 64
-    provisional_matches: int = 10
-    k_ramp_matches: int = 10
+    starting_rd: float = 350.0
+    starting_volatility: float = 0.06
+    glicko_tau: float = 0.5
     max_score_per_side: int = 20
     rating_floor: int = 0
-    decay_days: int = 30
-    decay_per_day: int = 10
-    max_decay: int = 200
     margin_weight: float = 0.3
-    format_k_multipliers: dict[str, float] = {
-        "1v1": 1.0,
-        "2v2": 0.8,
-        "3v3": 0.7,
-        "4v4": 0.6,
-        "5v5": 0.5,
-    }
     site_name: str = "Vantage"
     cookie_secure: bool = False
     public_base_url: str = ""

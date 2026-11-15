@@ -9,10 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app import glicko2
 from app.config import settings
 from app.csrf import csrf_protect
 from app.database import get_db
-from app.elo import calculate_delta, expected_score, k_factor, margin_multiplier, progressive_multiplier
 from app.models import Match, Player, Rating, RatingHistory, Team, TeamMember
 from app.ranks import recalculate_top_positions
 from app.ratelimit import rate_limit
@@ -63,7 +63,8 @@ async def _get_or_create_rating(db: AsyncSession, player_id: uuid.UUID, format: 
     )
     rating = result.scalar_one_or_none()
     if not rating:
-        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo)
+        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo,
+                        rd=settings.starting_rd, volatility=settings.starting_volatility)
         db.add(rating)
         await db.flush()
     return rating
@@ -78,7 +79,9 @@ async def _rating_for(db: AsyncSession, player_id: str, format: str, create: boo
     )
     rating = result.scalar_one_or_none()
     if rating is None:
-        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo, wins=0, losses=0, matches_played=0)
+        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo,
+                    rd=settings.starting_rd, volatility=settings.starting_volatility,
+                    wins=0, losses=0, matches_played=0)
     return rating
 
 
@@ -105,84 +108,52 @@ def _validate_teams(format: str, team_a: list[Player], team_b: list[Player]) -> 
         raise HTTPException(status_code=400, detail="A player cannot be on both teams")
 
 
-async def _compute_deltas(
+async def _compute_updates(
     db: AsyncSession,
     format: str,
     team_a_players: list[Player],
     team_b_players: list[Player],
-    score_a: int,
-    score_b: int,
     winner: str,
     create: bool = False,
-) -> tuple[dict[str, int], dict[str, int]]:
-    """Per-player deltas for both sides.
+) -> tuple[dict, dict, int, int]:
+    """Return (a_updates, b_updates, avg_a_delta, avg_b_delta).
 
-    Team formats use each player's own rating against the opposing average, then
-    scale the two sides so total gains equal total losses. 1v1 keeps the exact
-    zero-sum pair from ``calculate_delta``.
+    Each player is updated against the opposing team's average rating and RD.
     """
     a_ratings = {str(p.id): await _rating_for(db, str(p.id), format, create) for p in team_a_players}
     b_ratings = {str(p.id): await _rating_for(db, str(p.id), format, create) for p in team_b_players}
-    a_avg = sum(r.elo for r in a_ratings.values()) // len(a_ratings)
-    b_avg = sum(r.elo for r in b_ratings.values()) // len(b_ratings)
+    a_avg = sum(r.elo for r in a_ratings.values()) / len(a_ratings)
+    b_avg = sum(r.elo for r in b_ratings.values()) / len(b_ratings)
+    a_rd = sum((r.rd or glicko2.DEFAULT_RD) for r in a_ratings.values()) / len(a_ratings)
+    b_rd = sum((r.rd or glicko2.DEFAULT_RD) for r in b_ratings.values()) / len(b_ratings)
 
-    if format == "1v1":
-        if winner == "a":
-            a_delta, b_delta = calculate_delta(
-                a_avg, b_avg, score_a, score_b,
-                a_ratings[str(team_a_players[0].id)].matches_played,
-                b_ratings[str(team_b_players[0].id)].matches_played,
-                format=format,
+    def updates_for(ratings: dict, opponent_avg: float, opponent_rd: float, won: bool):
+        out = {}
+        for pid, rating in ratings.items():
+            new_rating, new_rd, new_vol = glicko2.update_rating(
+                rating.elo,
+                rating.rd or glicko2.DEFAULT_RD,
+                rating.volatility or glicko2.DEFAULT_VOLATILITY,
+                opponent_avg,
+                opponent_rd,
+                1.0 if won else 0.0,
+                settings.glicko_tau,
             )
-        else:
-            b_delta, a_delta = calculate_delta(
-                b_avg, a_avg, score_b, score_a,
-                b_ratings[str(team_b_players[0].id)].matches_played,
-                a_ratings[str(team_a_players[0].id)].matches_played,
-                format=format,
+            out[pid] = (
+                max(new_rating, settings.rating_floor),
+                new_rd,
+                new_vol,
             )
-        return (
-            {str(team_a_players[0].id): a_delta},
-            {str(team_b_players[0].id): b_delta},
-        )
+        return out
 
-    def raw_delta(rating: int, opponent_avg: int, matches: int,
-                  score_for: int, score_against: int, is_winner: bool) -> int:
-        expected = expected_score(rating, opponent_avg)
-        k = k_factor(rating, matches, format=format)
-        margin = margin_multiplier(score_for, score_against)
-        if is_winner:
-            return max(round(k * (1 - expected) * margin * progressive_multiplier(rating, True)), 1)
-        return -max(round(k * expected * margin * progressive_multiplier(rating, False)), 1)
+    a_updates = updates_for(a_ratings, b_avg, b_rd, winner == "a")
+    b_updates = updates_for(b_ratings, a_avg, a_rd, winner == "b")
 
-    a_deltas = {
-        pid: raw_delta(r.elo, b_avg, r.matches_played, score_a, score_b, winner == "a")
-        for pid, r in a_ratings.items()
-    }
-    b_deltas = {
-        pid: raw_delta(r.elo, a_avg, r.matches_played, score_b, score_a, winner == "b")
-        for pid, r in b_ratings.items()
-    }
+    def average_delta(ratings: dict, updates: dict) -> int:
+        total = sum(round(updates[pid][0]) - rating.elo for pid, rating in ratings.items())
+        return round(total / len(ratings))
 
-    # Team-level zero-sum: balance total gains against total losses.
-    wins = a_deltas if winner == "a" else b_deltas
-    losses = b_deltas if winner == "a" else a_deltas
-    total_win = sum(wins.values())
-    total_loss = sum(-d for d in losses.values())
-    if total_win > 0 and total_loss > 0:
-        target = (total_win + total_loss) / 2
-        for pid in wins:
-            wins[pid] = max(round(wins[pid] * target / total_win), 1)
-        for pid in losses:
-            losses[pid] = -max(round(-losses[pid] * target / total_loss), 1)
-
-    # Don't push anyone below the rating floor.
-    for deltas, ratings in ((a_deltas, a_ratings), (b_deltas, b_ratings)):
-        for pid, delta in list(deltas.items()):
-            if delta < 0 and ratings[pid].elo + delta < settings.rating_floor:
-                deltas[pid] = settings.rating_floor - ratings[pid].elo
-
-    return a_deltas, b_deltas
+    return a_updates, b_updates, average_delta(a_ratings, a_updates), average_delta(b_ratings, b_updates)
 
 
 async def _find_duplicate(
@@ -234,36 +205,62 @@ async def _find_or_create_team(db: AsyncSession, format: str, players: list[Play
     return team
 
 
-async def _update_team_rating(
-    db: AsyncSession, team_id: uuid.UUID, delta: int, is_winner: bool,
+async def _update_team_ratings(
+    db: AsyncSession, team_a: Team, team_b: Team, winner: str,
     format: str, match_id: uuid.UUID,
 ) -> None:
-    rating = (await db.execute(
-        select(Rating).where(Rating.team_id == team_id, Rating.format == format)
-    )).scalar_one_or_none()
-    if not rating:
-        rating = Rating(team_id=team_id, format=format, elo=settings.starting_elo)
-        db.add(rating)
-        await db.flush()
-    old_elo = rating.elo
-    rating.elo = max(rating.elo + delta, settings.rating_floor)
-    rating.matches_played += 1
-    if is_winner:
-        rating.wins += 1
-        rating.streak = (rating.streak + 1) if rating.streak > 0 else 1
-    else:
-        rating.losses += 1
-        rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
-    rating.last_updated = datetime.now(timezone.utc)
+    async def state(team: Team) -> Rating:
+        rating = (await db.execute(
+            select(Rating).where(Rating.team_id == team.id, Rating.format == format)
+        )).scalar_one_or_none()
+        if not rating:
+            rating = Rating(
+                team_id=team.id, format=format, elo=settings.starting_elo,
+                rd=settings.starting_rd, volatility=settings.starting_volatility,
+            )
+            db.add(rating)
+            await db.flush()
+        return rating
 
-    db.add(RatingHistory(
-        rating_id=rating.id,
-        team_id=team_id,
-        player_id=None,
-        elo_before=old_elo,
-        elo_after=rating.elo,
-        match_id=match_id,
-    ))
+    a_rating = await state(team_a)
+    b_rating = await state(team_b)
+    now = datetime.now(timezone.utc)
+
+    for team in (team_a, team_b):
+        rating = a_rating if team.id == team_a.id else b_rating
+        opponent = b_rating if team.id == team_a.id else a_rating
+        won = (winner == "a") if team.id == team_a.id else (winner == "b")
+        before = rating.elo
+        new_rating, new_rd, new_vol = glicko2.update_rating(
+            rating.elo,
+            rating.rd or glicko2.DEFAULT_RD,
+            rating.volatility or glicko2.DEFAULT_VOLATILITY,
+            opponent.elo,
+            opponent.rd or glicko2.DEFAULT_RD,
+            1.0 if won else 0.0,
+            settings.glicko_tau,
+        )
+        rating.elo = max(round(new_rating), settings.rating_floor)
+        rating.rd = new_rd
+        rating.volatility = new_vol
+        rating.rd_updated_at = now
+        rating.matches_played += 1
+        if won:
+            rating.wins += 1
+            rating.streak = (rating.streak + 1) if rating.streak > 0 else 1
+        else:
+            rating.losses += 1
+            rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
+        rating.last_updated = now
+
+        db.add(RatingHistory(
+            rating_id=rating.id,
+            team_id=team.id,
+            player_id=None,
+            elo_before=before,
+            elo_after=rating.elo,
+            match_id=match_id,
+        ))
 
 
 async def _notify_discord(message: str) -> None:
@@ -280,17 +277,23 @@ async def _notify_discord(message: str) -> None:
 async def _apply_player_ratings(
     db: AsyncSession,
     players: list[Player],
-    deltas: dict[str, int],
+    updates: dict,
     is_winner: bool,
     format: str,
     match_id: uuid.UUID,
 ) -> None:
+    now = datetime.now(timezone.utc)
     for player in players:
         pid = str(player.id)
-        delta = deltas.get(pid, 0)
+        if pid not in updates:
+            continue
+        new_rating, new_rd, new_vol = updates[pid]
         rating = await _get_or_create_rating(db, pid, format)
         old_elo = rating.elo
-        rating.elo = max(old_elo + delta, settings.rating_floor)
+        rating.elo = max(round(new_rating), settings.rating_floor)
+        rating.rd = new_rd
+        rating.volatility = new_vol
+        rating.rd_updated_at = now
         rating.matches_played += 1
         if is_winner:
             rating.wins += 1
@@ -298,9 +301,6 @@ async def _apply_player_ratings(
         else:
             rating.losses += 1
             rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
-        rating.is_decaying = False
-        rating.decay_applied = 0
-        now = datetime.now(timezone.utc)
         rating.last_active = now
         rating.last_updated = now
 
@@ -379,22 +379,17 @@ async def report_match(
     winner_score = body.score_a if winner == "a" else body.score_b
     loser_score = body.score_b if winner == "a" else body.score_a
 
-    team_a_deltas, team_b_deltas = await _compute_deltas(
-        db, body.format, team_a_players, team_b_players,
-        body.score_a, body.score_b, winner, create=True,
+    a_updates, b_updates, match.elo_delta_a, match.elo_delta_b = await _compute_updates(
+        db, body.format, team_a_players, team_b_players, winner, create=True,
     )
 
-    match.elo_delta_a = round(sum(team_a_deltas.values()) / len(team_a_deltas))
-    match.elo_delta_b = round(sum(team_b_deltas.values()) / len(team_b_deltas))
-
     await _apply_player_ratings(
-        db, team_a_players, team_a_deltas, winner == "a", body.format, match.id
+        db, team_a_players, a_updates, winner == "a", body.format, match.id
     )
     await _apply_player_ratings(
-        db, team_b_players, team_b_deltas, winner == "b", body.format, match.id
+        db, team_b_players, b_updates, winner == "b", body.format, match.id
     )
-    await _update_team_rating(db, team_a.id, match.elo_delta_a, winner == "a", body.format, match.id)
-    await _update_team_rating(db, team_b.id, match.elo_delta_b, winner == "b", body.format, match.id)
+    await _update_team_ratings(db, team_a, team_b, winner, body.format, match.id)
 
     await db.commit()
 
@@ -483,12 +478,9 @@ async def preview_match(
         body.score_a, body.score_b,
     )
 
-    team_a_deltas, team_b_deltas = await _compute_deltas(
-        db, body.format, team_a_players, team_b_players,
-        body.score_a, body.score_b, winner, create=False,
+    _a_updates, _b_updates, avg_a, avg_b = await _compute_updates(
+        db, body.format, team_a_players, team_b_players, winner, create=False,
     )
-    avg_a = round(sum(team_a_deltas.values()) / len(team_a_deltas))
-    avg_b = round(sum(team_b_deltas.values()) / len(team_b_deltas))
 
     return {
         "team_a": " + ".join(p.username for p in team_a_players),
@@ -499,10 +491,6 @@ async def preview_match(
         "elo_deltas": {
             "winner_delta": avg_a if winner == "a" else avg_b,
             "loser_delta": avg_b if winner == "a" else avg_a,
-        },
-        "player_deltas": {
-            "team_a": team_a_deltas,
-            "team_b": team_b_deltas,
         },
     }
 

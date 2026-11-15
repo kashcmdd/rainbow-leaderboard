@@ -8,7 +8,7 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** built 
 
 ## ✨ What It Can Do
 
-- **ELO Rating System** — Elo with a provisional K that ramps from 64 to 32 over the first 20 matches, new players starting at 500, margin-of-victory weighting, zero-sum deltas (per player in team formats, except at the rating floor), and multi-format support (1v1 through 5v5). Daily decay keeps inactive players from camping the top, can drop them below rank thresholds, and is recorded in rating history. Scores are capped at 20 per side.
+- **ELO Rating System** — Glicko-2 ratings (shown as ELO) with rating deviation: new players start at 500 with RD 350, win/loss outcomes, per-player team updates, and multi-format support (1v1 through 5v5). Inactivity grows RD instead of decaying the rating, so returning players move more. Scores are capped at 20 per side.
 - **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
 - **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
 - **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.
@@ -28,7 +28,7 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** built 
 | **Database** | PostgreSQL 16 via asyncpg + SQLAlchemy (async) |
 | **Frontend** | Server-rendered Jinja2 + vanilla JS + Tailwind |
 | **Auth** | Discord OAuth2 |
-| **Scheduling** | APScheduler for ELO decay |
+| **Scheduling** | APScheduler for inactivity RD inflation |
 | **Container** | Docker + Docker Compose |
 | **Migrations** | Alembic |
 

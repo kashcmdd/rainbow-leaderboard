@@ -30,7 +30,9 @@ async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db), 
     player = Player(username=body.username)
     db.add(player)
     await db.flush()
-    rating = Rating(player_id=player.id, format="1v1", elo=settings.starting_elo, wins=0, losses=0, matches_played=0)
+    rating = Rating(player_id=player.id, format="1v1", elo=settings.starting_elo,
+                       rd=settings.starting_rd, volatility=settings.starting_volatility,
+                       wins=0, losses=0, matches_played=0)
     db.add(rating)
     await db.commit()
     await db.refresh(player)
@@ -84,7 +86,6 @@ async def compare_players(
                 "losses": r.losses,
                 "streak": r.streak or 0,
                 "top_position": r.top_position,
-                "is_decaying": r.is_decaying,
             }
             for r in player.ratings
         ]
@@ -201,7 +202,6 @@ async def get_player(player_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             "losses": r.losses,
             "streak": r.streak or 0,
             "top_position": r.top_position,
-            "is_decaying": r.is_decaying,
         }
         for r in player.ratings
     ]
@@ -234,12 +234,13 @@ async def update_player(player_id: uuid.UUID, body: PlayerUpdate, db: AsyncSessi
         )
         rating = result.scalar_one_or_none()
         if not rating:
-            rating = Rating(player_id=player_id, format="1v1")
+            rating = Rating(player_id=player_id, format="1v1", elo=settings.starting_elo,
+                            rd=settings.starting_rd, volatility=settings.starting_volatility)
             db.add(rating)
         if body.elo is not None:
             rating.elo = body.elo
-            rating.decay_applied = 0
-            rating.is_decaying = False
+            from datetime import datetime, timezone
+            rating.rd_updated_at = datetime.now(timezone.utc)
         if body.wins is not None:
             rating.wins = body.wins
         if body.losses is not None:
