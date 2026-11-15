@@ -16,11 +16,29 @@
 .pagination-btn { min-width:32px; text-align:center; }
 </style>
 
-<h1 class="text-2xl font-extrabold text-ink mb-6">Admin Panel</h1>
+<div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <p class="eyebrow">Admin</p>
+    <h1 class="display text-[32px] leading-none sm:text-[38px]">Admin panel</h1>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <a href="/" class="btn btn-sm">View site</a>
+    <a href="/report" class="btn btn-sm">Report match</a>
+    <a href="/leaderboard" class="btn btn-sm">Leaderboard</a>
+  </div>
+</div>
+
+<div class="mb-4 flex seg md:hidden" id="adminTabs" role="tablist" aria-label="Admin sections">
+  <button class="seg-item is-active" type="button" data-admin-tab="overview">Overview</button>
+  <button class="seg-item" type="button" data-admin-tab="players">Players</button>
+  <button class="seg-item" type="button" data-admin-tab="tournaments">Tourneys</button>
+  <button class="seg-item" type="button" data-admin-tab="seasons">Seasons</button>
+  <button class="seg-item" type="button" data-admin-tab="logs">Logs</button>
+</div>
 
 <div id="toast" class="fixed bottom-6 right-6 z-50 hidden card px-5 py-3 text-sm shadow-xl border transition-all" style="border-color:var(--line-strong);"></div>
 
-<div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+<div id="confirmModal" class="fixed inset-0 hidden items-center justify-center" style="z-index:120;background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
     <h3 id="modalTitle" class="text-lg font-bold text-ink mb-2"></h3>
     <p id="modalDesc" class="text-xs text-ink3 mb-5"></p>
@@ -35,7 +53,7 @@
   </div>
 </div>
 
-<div id="textPromptModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+<div id="textPromptModal" class="fixed inset-0 hidden items-center justify-center" style="z-index:120;background:var(--scrim);">
   <div class="card mx-4 w-full max-w-md p-6">
     <h3 id="textPromptTitle" class="mb-2 text-lg font-bold text-ink">Add players</h3>
     <p class="mb-3 text-xs text-ink3">One username per line, or comma separated.</p>
@@ -47,7 +65,7 @@
   </div>
 </div>
 
-<div id="eloModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+<div id="eloModal" class="fixed inset-0 hidden items-center justify-center" style="z-index:120;background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
     <h3 class="text-lg font-bold text-ink mb-1" id="eloModalTitle">Adjust ELO</h3>
     <p class="text-xs text-ink3 mb-5" id="eloModalPlayer"></p>
@@ -66,7 +84,7 @@
   </div>
 </div>
 
-<div id="avatarModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+<div id="avatarModal" class="fixed inset-0 hidden items-center justify-center" style="z-index:120;background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
     <h3 class="text-lg font-bold text-ink mb-1" id="avatarModalTitle">Upload Avatar</h3>
     <p class="text-xs text-ink3 mb-5" id="avatarModalPlayer"></p>
@@ -80,7 +98,7 @@
   </div>
 </div>
 
-<div id="matchEditModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:var(--scrim);">
+<div id="matchEditModal" class="fixed inset-0 hidden items-center justify-center" style="z-index:120;background:var(--scrim);">
   <div class="card p-8 w-full max-w-sm mx-4">
     <h3 class="text-lg font-bold text-ink mb-1">Edit Match</h3>
     <p class="text-xs text-ink3 mb-5" id="matchEditInfo"></p>
@@ -115,6 +133,9 @@
 
 <script>
 let modalResolve, modalReject;
+// Cancelling a confirmation aborts the awaited action; that rejection is expected.
+window.addEventListener('unhandledrejection', e => { if (e.reason && e.reason.name === 'ModalCancelled') e.preventDefault(); });
+function cancelModal() { if (modalReject) modalReject(Object.assign(new Error('cancelled'), { name: 'ModalCancelled' })); }
 function toast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -141,9 +162,9 @@ function showModal(title, desc, dangerous) {
     document.getElementById('confirmModal').classList.add('flex');
   });
 }
-document.getElementById('modalCancel').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalReject) modalReject(); });
+document.getElementById('modalCancel').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); cancelModal(); });
 document.getElementById('modalConfirm').addEventListener('click', () => { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalResolve) modalResolve(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); if (modalReject) modalReject(); }});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('confirmModal').classList.contains('hidden')) { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); cancelModal(); }});
 
 function showTextPrompt(title) {
   const modal = $('textPromptModal');
@@ -187,6 +208,7 @@ let allPlayers = [], allRatingData = {}, ownerIds = [], currentPage = 1, pageSiz
 const $ = id => document.getElementById(id);
 
 async function loadAdmin() {
+  $('adminContent').innerHTML = '';
   let stats = { total_players:0, total_matches:0, active_players:0, total_ratings:0, avg_elo:0, highest_elo:0, distribution:[], owner_ids:[] };
   try { const sr = await fetch('/api/admin/stats'); if (sr.ok) stats = await sr.json(); } catch {}
   ownerIds = stats.owner_ids || [];
@@ -216,6 +238,7 @@ async function loadAdmin() {
   renderAuditLog(auditLog);
   renderMatches(matches);
   wireGlobal();
+  setupAdminTabs();
 }
 
 function renderStats(s) {
@@ -231,13 +254,27 @@ function renderStats(s) {
 
 function renderDistribution(s) {
   if (!s.distribution || !s.distribution.length) return;
-  const maxCount = Math.max(...s.distribution.map(d=>d.count), 1);
-  let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection"><h2 class="text-sm font-bold text-ink mb-3">Rating Distribution</h2><div class="flex flex-wrap gap-3">`;
+  const total = s.distribution.reduce((sum, d) => sum + d.count, 0) || 1;
+  let bar = '';
   for (const d of s.distribution) {
-    const pct = (d.count / maxCount * 100).toFixed(0);
-    html += `<div class="flex items-center gap-2 w-36"><span class="rank-dot" style="background:${d.color}"></span><span class="text-[10px] text-ink3 w-20">${d.rank}</span><div class="flex-1 bg-panel2 rounded-full"><div class="dist-bar" style="width:${pct}%;background:${d.color};"></div></div><span class="text-[10px] text-ink3 w-5 text-right">${d.count}</span></div>`;
+    const pct = (d.count / total * 100);
+    bar += `<div style="width:${pct}%;background:${d.color}" title="${d.rank}: ${d.count}"></div>`;
   }
-  html += `</div></div>`;
+  let legend = '';
+  for (const d of s.distribution) {
+    const pct = Math.round(d.count / total * 100);
+    legend += `<div class="flex items-center gap-2">
+      <span class="rank-dot" style="background:${d.color}"></span>
+      <span class="flex-1 truncate text-[12px] text-ink2">${d.rank}</span>
+      <span class="num text-[12px] text-ink3">${d.count}</span>
+      <span class="num w-9 text-right text-[11px] text-ink3">${pct}%</span>
+    </div>`;
+  }
+  let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection">
+    <div class="section-head mb-3"><h2 class="text-sm font-bold text-ink">Rating distribution</h2><span class="micro">${total} ratings</span></div>
+    <div class="flex h-3 w-full overflow-hidden rounded-sm" style="background:var(--panel-2);">${bar}</div>
+    <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:gap-x-6 lg:grid-cols-3">${legend}</div>
+  </div>`;
   $('adminContent').insertAdjacentHTML('beforeend', html);
 }
 
@@ -256,7 +293,7 @@ function renderManagement() {
       </select>
       <button id="createTmtBtn" class="btn btn-pink text-xs">Create</button>
     </div>
-    <div id="tmtList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+    <div id="tmtList" class="space-y-1.5"></div>
   </div>`);
   $('adminContent').insertAdjacentHTML('beforeend', `<div class="card p-5 mb-5 animate-slide-up" id="seasonSection"><h2 class="text-sm font-bold text-ink mb-1">Season Management</h2><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">Close the 1v1 season to archive its standings and reset 1v1 ELOs. Other formats keep their ratings.</p>
     <div class="flex flex-wrap gap-2">
@@ -325,7 +362,7 @@ function renderPlayerTable() {
   // Sortable column headers
   const sortable = (label, field) => `<th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-ink3 uppercase tracking-widest" data-sort="${field}">${label}${sortIcon(field)}</th>`;
 
-  html += `<div class="overflow-x-auto"><table class="w-full"><thead><tr style="border-bottom:1px solid var(--line);">
+  html += `<div class="hidden overflow-x-auto md:block"><table class="w-full"><thead><tr style="border-bottom:1px solid var(--line);">
     <th class="py-3 px-2 w-8 sm:w-10"><input type="checkbox" id="selectAll" class="checkbox"></th>
     <th class="py-3 px-2 w-8 sm:w-10"></th>
     <th class="py-3 px-2 text-left sort-btn text-[10px] font-semibold text-ink3 uppercase tracking-widest" data-sort="username">Name${sortIcon('username')}</th>
@@ -360,7 +397,7 @@ function renderPlayerTable() {
       <td class="py-2.5 px-2 text-right text-sm text-ink">${r.wins}</td>
       <td class="py-2.5 px-2 text-right text-sm text-ink">${r.losses}</td>
       <td class="py-2.5 px-2 text-ink3 text-sm">${r.matches_played}</td>
-      <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><span class="rank-dot" style="background:${rank[2]}"></span><span class="text-[10px] font-semibold whitespace-nowrap rank-elo" style="--rank-color:${rank[2]}">${rank[0]}</span></div></td>
+      <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><img src="/static/rank-icons/${rank[0].toLowerCase().replace(/ /g, '_')}.svg" alt="" class="h-4 w-4"><span class="text-[11px] font-semibold whitespace-nowrap rank-elo" style="--rank-color:${rank[2]}">${rank[0]}</span></div></td>
       <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="text-xs font-bold" style="color:var(--warn);">👑 Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'color-mix(in srgb, var(--signal) 15%, transparent)':'transparent'};color:${p.is_admin?'var(--signal)':'var(--ink-3)'};border:1px solid ${p.is_admin?'var(--signal-line)':'var(--line)'};">${p.is_admin?'🛡️ Admin':'👤 User'}</button>`}</td>
       <td class="py-2.5 px-2 text-right"><div class="flex items-center justify-end gap-1">
         <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'color-mix(in srgb, var(--win) 10%, transparent)':'color-mix(in srgb, var(--loss) 10%, transparent)'};color:${banned?'var(--win)':'var(--loss)'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
@@ -370,6 +407,38 @@ function renderPlayerTable() {
     </tr>`;
   }
   html += '</tbody></table></div>';
+
+  // Phone cards: the wide table cannot fit, so show a compact list instead.
+  html += '<div class="mt-4 space-y-2 md:hidden" id="playerCards">';
+  for (const p of pagePlayers) {
+    const r = allRatingData[p.id] || {elo:0,wins:0,losses:0,matches_played:0};
+    const rank = [r.rank_title || getRank(r.elo)[0], 0, r.rank_color || getRank(r.elo)[2]];
+    const isOwner = ownerIds.includes(p.discord_id);
+    const banned = p.is_banned;
+    const rankIcon = rank[0].toLowerCase().replace(/ /g, '_');
+    html += `<div class="border p-3 ${banned?'banned-row':''}" style="border-color:var(--line)" data-id="${p.id}">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="checkbox player-checkbox mt-1 shrink-0" value="${p.id}">
+        ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-sm open-profile" data-id="${p.id}">` : `<div class="avatar-sm open-profile flex items-center justify-center text-[10px] font-bold" style="background:var(--panel-2);color:var(--ink-3);" data-id="${p.id}">${p.username[0].toUpperCase()}</div>`}
+        <div class="min-w-0 flex-1">
+          <div class="open-profile truncate text-[14px] font-semibold" style="color:${banned?'var(--loss)':'var(--ink)'}" data-id="${p.id}">${p.username}${banned?' [BANNED]':''}</div>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <img src="/static/rank-icons/${rankIcon}.svg" alt="" class="h-4 w-4">
+            <span class="rank-chip" style="--rank-color:${rank[2]}">${rank[0]}</span>
+            <span class="num text-[13px] rank-elo" style="--rank-color:${rank[2]}">${r.elo}</span>
+            <span class="micro">${r.wins}W ${r.losses}L ${r.matches_played}M</span>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-1.5">
+        <button class="elo-adjust btn btn-sm" data-id="${p.id}" data-name="${p.username}" data-elo="${r.elo}">± ELO</button>
+        <button class="ban-btn btn btn-sm" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
+        ${isOwner ? '<span class="badge badge-warn">Owner</span>' : `<button class="admin-toggle btn btn-sm" data-id="${p.id}">${p.is_admin?'Admin':'User'}</button>`}
+        <button class="delete-btn btn btn-sm btn-danger" data-id="${p.id}">Delete</button>
+      </div>
+    </div>`;
+  }
+  html += '</div>';
 
   // Pagination
   html += `<div class="flex items-center justify-between mt-4 pt-4" style="border-top:1px solid var(--line);">
@@ -516,9 +585,9 @@ function wireGlobal() {
       const canStart = t.status === 'pending';
       const canAdd = t.status === 'pending';
       const canComplete = t.status === 'active';
-      return `<div class="flex items-center justify-between text-xs card px-3 py-2" style="border-color:var(--line);">
-          <span class="text-ink" style="min-width:120px;">${window.esc(t.name)}</span>
-        <div class="flex items-center gap-1.5 flex-wrap">
+      return `<div class="flex flex-col gap-2 text-xs card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between" style="border-color:var(--line);">
+          <span class="truncate text-ink sm:min-w-[120px]">${window.esc(t.name)}</span>
+        <div class="flex flex-wrap items-center gap-1.5 sm:justify-end">
           <span class="text-ink3">${t.status}</span>
           ${canAdd ? `<button class="btn text-xs px-3 py-2 add-players-btn" data-id="${t.id}" style="color:var(--warn);border-color:color-mix(in srgb, var(--warn) 30%, transparent);">+Players</button>` : ''}
           ${canStart ? `<button class="btn text-xs px-3 py-2 start-tmt-btn" data-id="${t.id}" style="color:var(--win);border-color:color-mix(in srgb, var(--win) 30%, transparent);">Start</button>` : ''}
@@ -827,6 +896,30 @@ function refreshTable() {
   const card = $('playerTableCard');
   if (card) card.remove();
   renderPlayerTable();
+}
+
+function setupAdminTabs() {
+  const groups = {
+    overview: ['statsRow', 'distSection', 'mgmtSection'],
+    players: ['addPlayerSection', 'bulkImportSection', 'playerTableCard', 'matchesSection'],
+    tournaments: ['tournamentSection'],
+    seasons: ['seasonSection'],
+    logs: ['auditSection'],
+  };
+  const tabs = document.querySelectorAll('[data-admin-tab]');
+  function apply(tab) {
+    tabs.forEach(t => t.classList.toggle('is-active', t.dataset.adminTab === tab));
+    const mobile = window.innerWidth < 768;
+    Object.entries(groups).forEach(([group, ids]) => {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (!mobile || group === tab) ? '' : 'none';
+      });
+    });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => apply(t.dataset.adminTab)));
+  window.addEventListener('resize', () => apply(document.querySelector('[data-admin-tab].is-active')?.dataset.adminTab || 'overview'));
+  apply('overview');
 }
 
 loadAdmin();

@@ -27,6 +27,9 @@ services:
       - pg_isready -U rainbow
       timeout: 5s
     image: postgres:16
+    ports:
+    # Localhost only: lets pytest and psql reach the dev database from the host.
+    - 127.0.0.1:5432:5432
     restart: unless-stopped
     volumes:
     - pgdata:/var/lib/postgresql/data
