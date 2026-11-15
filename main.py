@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="Rainbow Leaderboard", lifespan=lifespan)
+app = FastAPI(title=settings.site_name, lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "app" / "templates")
 templates.env.globals["site_name"] = settings.site_name
 templates.env.globals["public_base_url"] = settings.public_base_url

@@ -2,9 +2,9 @@
 
 ## What this is
 
-A community leaderboard and match tracker for Rainbow Six, with ELO ratings
-across 1v1 through 5v5. Players report results, admins curate the roster,
-seasons and tournaments, and everyone can read the ladder.
+Vantage is a community leaderboard and match tracker for Rainbow Six, with ELO
+ratings across 1v1 through 5v5. Players report results, admins curate the
+roster, seasons and tournaments, and everyone can read the ladder.
 
 Public surfaces:
 
@@ -53,7 +53,7 @@ colour rather than decoration.
 - Tailwind 3 with a committed build (`app/static/css/tailwind.min.css`);
   `npm run tw:build` regenerates it.
 - Dark and light themes, both designed; preference persists.
-- The site name is configuration (`SITE_NAME`, default `clukzersLB`) because a
+- The site name is configuration (`SITE_NAME`, default `Vantage`) because a
   rename is planned.
 - Match results can be announced to an optional Discord webhook.
 - Admins are verified against the database/allowlist on page routes as well as

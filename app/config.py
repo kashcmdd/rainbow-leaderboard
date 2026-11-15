@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         "4v4": 0.6,
         "5v5": 0.5,
     }
-    site_name: str = "clukzersLB"
+    site_name: str = "Vantage"
     cookie_secure: bool = False
     public_base_url: str = ""
     dev_login_discord_id: str = ""

@@ -1,4 +1,4 @@
-# Rainbow Leaderboard 🏆
+# Vantage 🏆
 
 > **Your community's ranked ladder — up and running in 2 commands.**
 
@@ -55,7 +55,7 @@ Copy `.env.example` to `.env` and fill in your details:
 ```env
 DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
 SECRET_KEY=your-secret-key-here
-SITE_NAME=clukzersLB
+SITE_NAME=Vantage
 COOKIE_SECURE=false          # true behind HTTPS
 PUBLIC_BASE_URL=http://localhost:8090
 DISCORD_CLIENT_ID=your-discord-client-id
