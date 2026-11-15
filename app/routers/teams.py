@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, or_, select
@@ -6,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Match, Rating, Team, TeamMember
+from app.models import Match, Rating, RatingHistory, Team, TeamMember
 from app.ranks import get_rank
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
@@ -85,6 +86,25 @@ async def get_team(team_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             "played_at": m.played_at.isoformat(),
         })
 
+    history_rows = []
+    form = []
+    movement = 0
+    if rating:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        history_rows = (await db.execute(
+            select(RatingHistory)
+            .where(RatingHistory.rating_id == rating.id)
+            .order_by(RatingHistory.changed_at.asc())
+            .limit(60)
+        )).scalars().all()
+        for h in reversed(history_rows):
+            if h.changed_at < cutoff:
+                continue
+            delta = h.elo_after - h.elo_before
+            if delta != 0 and len(form) < 5:
+                form.append("W" if delta > 0 else "L")
+            movement += delta
+
     rank_title, rank_color = get_rank(rating.elo if rating else 0)
     return {
         "id": str(team.id),
@@ -97,6 +117,12 @@ async def get_team(team_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         "losses": rating.losses if rating else 0,
         "matches_played": rating.matches_played if rating else 0,
         "streak": (rating.streak or 0) if rating else 0,
+        "form": form,
+        "movement_7d": movement,
+        "history": [
+            {"elo": h.elo_after, "timestamp": h.changed_at.isoformat()}
+            for h in history_rows
+        ],
         "members": members,
         "recent_matches": recent,
     }

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     new_player_k: int = 64
     provisional_matches: int = 10
     k_ramp_matches: int = 10
+    max_score_per_side: int = 20
     rating_floor: int = 0
     decay_days: int = 30
     decay_per_day: int = 10

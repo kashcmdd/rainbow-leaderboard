@@ -26,6 +26,16 @@ from httpx import ASGITransport, AsyncClient
 from itsdangerous import TimestampSigner
 from starlette.middleware.sessions import b64encode
 
+
+@pytest_asyncio.fixture(autouse=True)
+def _clear_rate_limits():
+    """The in-process limiter is global; keep tests independent."""
+    from app.ratelimit import _buckets
+    _buckets.clear()
+    yield
+    _buckets.clear()
+
+
 MOCK_SESSION = {
     "user": {
         "id": "1415420243836407878",

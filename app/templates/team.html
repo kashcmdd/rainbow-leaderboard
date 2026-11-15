@@ -28,6 +28,34 @@ function esc(s) {
     return d.innerHTML;
 }
 
+function formTicks(form) {
+    return (form || []).map(function (r) {
+        var color = r === 'W' ? 'var(--win)' : 'var(--loss)';
+        return '<span class="num flex h-4 w-4 items-center justify-center border text-[9px] font-semibold" style="border-color:' + color + ';color:' + color + '">' + r + '</span>';
+    }).join('');
+}
+
+function trend(history) {
+    var values = (history || []).map(function (h) { return h.elo; });
+    if (values.length < 2) return '';
+    var width = 240, height = 44, pad = 4;
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    var range = max - min || 1;
+    var points = values.map(function (v, i) {
+        return {
+            x: (i / (values.length - 1)) * width,
+            y: pad + (1 - (v - min) / range) * (height - pad * 2)
+        };
+    });
+    var path = points.map(function (p, i) {
+        return (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1);
+    }).join(' ');
+    return '<div class="mt-3"><div class="micro mb-1">Rating trend</div>' +
+        '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="' + height + '" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path d="' + path + '" fill="none" stroke="var(--signal)" stroke-width="1.5" stroke-linejoin="round"/></svg></div>';
+}
+
 async function loadTeam() {
     const res = await fetch('/api/teams/' + TEAM_ID);
     if (!res.ok) {
@@ -79,6 +107,11 @@ async function loadTeam() {
                         <span class="micro">${t.wins}W / ${t.losses}L</span>
                         ${t.streak ? `<span class="badge ${t.streak > 0 ? 'badge-win' : 'badge-loss'}">${t.streak > 0 ? '+' : ''}${t.streak}</span>` : ''}
                     </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <span class="micro">Form</span>${formTicks(t.form)}
+                        <span class="micro">7d <span style="color:${t.movement_7d > 0 ? 'var(--win)' : t.movement_7d < 0 ? 'var(--loss)' : 'var(--ink-3)'}">${t.movement_7d > 0 ? '+' : ''}${t.movement_7d}</span></span>
+                    </div>
+                    ${trend(t.history)}
                 </div>
                 <div class="hidden grid-cols-3 gap-px border sm:grid sm:w-72" style="border-color:var(--line);background:var(--line)">
                     <div class="bg-panel px-4 py-3"><div class="stat-label">Played</div><div class="num mt-1 text-[15px] font-semibold">${t.matches_played}</div></div>

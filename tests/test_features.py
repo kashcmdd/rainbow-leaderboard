@@ -73,7 +73,16 @@ class TestTeams:
             headers=admin_headers,
         )
         detail2 = await client.get(f"/api/teams/{team_id}")
-        assert detail2.json()["matches_played"] == 2
+        team2 = detail2.json()
+        assert team2["matches_played"] == 2
+        assert len(team2["history"]) == 2
+        assert len(team2["form"]) == 2
+        assert team2["movement_7d"] == team2["history"][-1]["elo"] - 500
+
+        board2 = (await client.get("/api/leaderboard/1v1/team")).json()
+        rated = next(e for e in board2 if e["team_id"] == team_id)
+        assert rated["movement_7d"] == team2["movement_7d"]
+        assert rated["form"] == team2["form"]
 
 
 class TestMatchDetail:
@@ -188,7 +197,10 @@ class TestTeamDeltas:
 
         async with async_session() as db:
             rows = (await db.execute(
-                select(RatingHistory).where(RatingHistory.match_id == match_id)
+                select(RatingHistory).where(
+                    RatingHistory.match_id == match_id,
+                    RatingHistory.player_id.isnot(None),
+                )
             )).scalars().all()
             deltas = {str(r.player_id): r.elo_after - r.elo_before for r in rows}
 
@@ -315,6 +327,23 @@ class TestDevLogin:
         assert players[0]["is_admin"] is True
 
 
+class TestScoreValidation:
+    async def test_scores_above_the_cap_are_rejected(self, client, admin_headers):
+        await _create_player(client, admin_headers, "cap-a")
+        await _create_player(client, admin_headers, "cap-b")
+        payload = {
+            "format": "1v1",
+            "team_a_player_names": ["cap-a"],
+            "team_b_player_names": ["cap-b"],
+            "score_a": 21,
+            "score_b": 0,
+        }
+        report = await client.post("/api/matches", json=payload, headers=admin_headers)
+        assert report.status_code == 400
+        preview = await client.post("/api/matches/preview", json=payload, headers=admin_headers)
+        assert preview.status_code == 400
+
+
 class TestStartingRating:
     async def test_new_player_starts_at_configured_elo(self, client, admin_headers):
         player = await _create_player(client, admin_headers, "fresh-player")
@@ -344,7 +373,7 @@ class TestDecay:
                 select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
             )).scalar_one()
             first = rating.elo
-            assert first == 2100  # 10 days past the grace period; floor stops at the tier
+            assert first == 2050  # 100 from 2150; decay may cross a tier now
             assert rating.decay_applied == 100
             history = (await db.execute(
                 select(RatingHistory).where(
@@ -354,7 +383,7 @@ class TestDecay:
             )).scalars().all()
             assert len(history) == 1
             assert history[0].elo_before == 2150
-            assert history[0].elo_after == 2100
+            assert history[0].elo_after == 2050
 
         await run_elo_decay()
         async with async_session() as db:

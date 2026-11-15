@@ -27,7 +27,6 @@ async def run_elo_decay():
 
         from app.database import async_session
         from app.models import AuditLog, Rating, RatingHistory
-        from app.ranks import RANKS
 
         now = datetime.now(timezone.utc)
         async with async_session() as db:
@@ -56,14 +55,8 @@ async def run_elo_decay():
                 if increment <= 0:
                     continue
 
-                min_elo = 0
-                for _name, threshold, _ in reversed(RANKS):
-                    if r.elo >= threshold:
-                        min_elo = threshold
-                        break
-
                 before = r.elo
-                r.elo = max(before - increment, min_elo)
+                r.elo = max(before - increment, settings.rating_floor)
                 r.decay_applied = target_decay
                 actual_decay = before - r.elo
                 if actual_decay > 0:

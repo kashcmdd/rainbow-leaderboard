@@ -82,6 +82,15 @@ async def _rating_for(db: AsyncSession, player_id: str, format: str, create: boo
     return rating
 
 
+def _validate_scores(score_a: int, score_b: int) -> None:
+    limit = settings.max_score_per_side
+    if score_a > limit or score_b > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A score cannot exceed {limit}",
+        )
+
+
 def _validate_teams(format: str, team_a: list[Player], team_b: list[Player]) -> None:
     try:
         expected = int(format.split("v")[0])
@@ -226,7 +235,8 @@ async def _find_or_create_team(db: AsyncSession, format: str, players: list[Play
 
 
 async def _update_team_rating(
-    db: AsyncSession, team_id: uuid.UUID, delta: int, is_winner: bool, format: str
+    db: AsyncSession, team_id: uuid.UUID, delta: int, is_winner: bool,
+    format: str, match_id: uuid.UUID,
 ) -> None:
     rating = (await db.execute(
         select(Rating).where(Rating.team_id == team_id, Rating.format == format)
@@ -235,6 +245,7 @@ async def _update_team_rating(
         rating = Rating(team_id=team_id, format=format, elo=settings.starting_elo)
         db.add(rating)
         await db.flush()
+    old_elo = rating.elo
     rating.elo = max(rating.elo + delta, settings.rating_floor)
     rating.matches_played += 1
     if is_winner:
@@ -244,6 +255,15 @@ async def _update_team_rating(
         rating.losses += 1
         rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
     rating.last_updated = datetime.now(timezone.utc)
+
+    db.add(RatingHistory(
+        rating_id=rating.id,
+        team_id=team_id,
+        player_id=None,
+        elo_before=old_elo,
+        elo_after=rating.elo,
+        match_id=match_id,
+    ))
 
 
 async def _notify_discord(message: str) -> None:
@@ -326,6 +346,7 @@ async def report_match(
         db, [str(p) for p in body.team_b_player_ids], body.team_b_player_names,
         discord_id=reporter_did,
     )
+    _validate_scores(body.score_a, body.score_b)
     _validate_teams(body.format, team_a_players, team_b_players)
 
     duplicate = await _find_duplicate(
@@ -372,8 +393,8 @@ async def report_match(
     await _apply_player_ratings(
         db, team_b_players, team_b_deltas, winner == "b", body.format, match.id
     )
-    await _update_team_rating(db, team_a.id, match.elo_delta_a, winner == "a", body.format)
-    await _update_team_rating(db, team_b.id, match.elo_delta_b, winner == "b", body.format)
+    await _update_team_rating(db, team_a.id, match.elo_delta_a, winner == "a", body.format, match.id)
+    await _update_team_rating(db, team_b.id, match.elo_delta_b, winner == "b", body.format, match.id)
 
     await db.commit()
 
@@ -453,6 +474,7 @@ async def preview_match(
     team_b_players = await _resolve_players(
         db, [str(p) for p in body.team_b_player_ids], body.team_b_player_names, create=False
     )
+    _validate_scores(body.score_a, body.score_b)
     _validate_teams(body.format, team_a_players, team_b_players)
 
     duplicate = await _find_duplicate(

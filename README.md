@@ -8,7 +8,7 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** built 
 
 ## ✨ What It Can Do
 
-- **ELO Rating System** — Elo with a provisional K that ramps from 64 to 32 over the first 20 matches, new players starting at 500, margin-of-victory weighting, zero-sum deltas (per player in team formats, except at the rating floor), and multi-format support (1v1 through 5v5). Daily decay keeps inactive players from camping the top and is recorded in rating history.
+- **ELO Rating System** — Elo with a provisional K that ramps from 64 to 32 over the first 20 matches, new players starting at 500, margin-of-victory weighting, zero-sum deltas (per player in team formats, except at the rating floor), and multi-format support (1v1 through 5v5). Daily decay keeps inactive players from camping the top, can drop them below rank thresholds, and is recorded in rating history. Scores are capped at 20 per side.
 - **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
 - **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
 - **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.

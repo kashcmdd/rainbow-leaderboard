@@ -14,6 +14,30 @@ from app.schemas import LeaderboardEntry
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 
+async def _recent_signals(db: AsyncSession, rating_ids: list) -> dict:
+    """Form (last five) and 7-day movement for a set of rating ids."""
+    history_map = {}
+    if not rating_ids:
+        return history_map
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    rows = (await db.execute(
+        select(RatingHistory.rating_id, RatingHistory.elo_before,
+               RatingHistory.elo_after, RatingHistory.changed_at)
+        .where(
+            RatingHistory.rating_id.in_(rating_ids),
+            RatingHistory.changed_at >= cutoff,
+        )
+        .order_by(desc(RatingHistory.changed_at))
+    )).all()
+    for rating_id, before, after, _changed in rows:
+        delta = after - before
+        bucket = history_map.setdefault(rating_id, {"form": [], "movement": 0})
+        if delta != 0 and len(bucket["form"]) < 5:
+            bucket["form"].append("W" if delta > 0 else "L")
+        bucket["movement"] += delta
+    return history_map
+
+
 
 @router.get("/{format}", response_model=list[LeaderboardEntry])
 async def get_leaderboard(
@@ -104,26 +128,7 @@ async def get_leaderboard(
     result = await db.execute(q)
     ratings = result.scalars().all()
 
-    # Recent form (last five results) and ELO movement over the last seven days.
-    history_map = {}
-    rating_ids = [r.id for r in ratings]
-    if rating_ids:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-        rows = (await db.execute(
-            select(RatingHistory.rating_id, RatingHistory.elo_before,
-                   RatingHistory.elo_after, RatingHistory.changed_at)
-            .where(
-                RatingHistory.rating_id.in_(rating_ids),
-                RatingHistory.changed_at >= cutoff,
-            )
-            .order_by(desc(RatingHistory.changed_at))
-        )).all()
-        for rating_id, before, after, _changed in rows:
-            delta = after - before
-            bucket = history_map.setdefault(rating_id, {"form": [], "movement": 0})
-            if delta != 0 and len(bucket["form"]) < 5:
-                bucket["form"].append("W" if delta > 0 else "L")
-            bucket["movement"] += delta
+    history_map = await _recent_signals(db, [r.id for r in ratings])
 
     entries = []
     for i, r in enumerate(ratings, 1):
@@ -212,6 +217,7 @@ async def get_team_leaderboard(
     )
     result = await db.execute(rating_q)
     ratings = result.scalars().all()
+    history_map = await _recent_signals(db, [r.id for r in ratings])
 
     entries = []
     for i, r in enumerate(ratings, 1):
@@ -239,6 +245,8 @@ async def get_team_leaderboard(
             losses=r.losses,
             win_rate=win_rate,
             avatar_url=None,
+            form=history_map.get(r.id, {}).get("form", []),
+            movement_7d=history_map.get(r.id, {}).get("movement", 0),
         ))
     return entries
 
