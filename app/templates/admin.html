@@ -425,7 +425,6 @@ function renderPlayerTable() {
       <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="badge badge-warn">Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'color-mix(in srgb, var(--signal) 15%, transparent)':'transparent'};color:${p.is_admin?'var(--signal)':'var(--ink-3)'};border:1px solid ${p.is_admin?'var(--signal-line)':'var(--line)'};">${p.is_admin?'Admin':'User'}</button>`}</td>
       <td class="py-2.5 px-2 text-right"><div class="flex items-center justify-end gap-1">
         <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'color-mix(in srgb, var(--win) 10%, transparent)':'color-mix(in srgb, var(--loss) 10%, transparent)'};color:${banned?'var(--win)':'var(--loss)'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
-        <button class="save-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:var(--signal-soft);color:var(--signal);border:none;" data-id="${p.id}">Save</button>
         <button class="delete-btn text-[10px] font-bold w-14 py-1.5 rounded-lg transition-all" style="background:var(--loss);color:#fff;border:none;" data-id="${p.id}">Delete</button>
       </div></td>
     </tr>`;
@@ -547,30 +546,64 @@ function wireMatchEdit() {
 }
 
 function renderAuditLog(log) {
+  const actions = [...new Set(log.map((e) => e.action))].sort();
   let html = `<div class="card p-5 mt-5 animate-slide-up" id="auditSection"><div class="flex items-center justify-between mb-1">
     <h2 class="text-sm font-bold text-ink">Audit Log</h2>
     <button id="clearAuditBtn" class="btn btn-danger text-xs">Clear Log</button>
   </div><p class="text-[10px] text-ink3 uppercase tracking-widest mb-4">All admin actions recorded</p>`;
-  if (!log.length) { html += '<p class="text-xs text-ink3">No entries yet.</p>'; }
-  else {
-    html += `<div class="overflow-x-auto max-h-80 overflow-y-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-ink3 uppercase tracking-widest" style="border-bottom:1px solid var(--line);">
+  if (log.length) {
+    html += `<div class="mb-3 flex flex-col gap-2 sm:flex-row">
+      <input id="auditSearch" class="field sm:flex-1" placeholder="Search admin, target or details" aria-label="Search audit log" autocomplete="off">
+      <select id="auditAction" class="field sm:w-56" aria-label="Filter by action">
+        <option value="">All actions</option>
+        ${actions.map((a) => `<option value="${window.esc(a)}">${window.esc(a)}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+  html += '<div id="auditList"></div></div>';
+  $('adminContent').insertAdjacentHTML('beforeend', html);
+
+  function renderRows() {
+    const list = $('auditList');
+    if (!list) return;
+    if (!log.length) {
+      list.innerHTML = '<p class="text-xs text-ink3">No entries yet.</p>';
+      return;
+    }
+    const query = ($('auditSearch')?.value || '').toLowerCase().trim();
+    const action = $('auditAction')?.value || '';
+    const rows = log.filter((e) => {
+      if (action && e.action !== action) return false;
+      if (!query) return true;
+      return [e.admin_name, e.action, e.target_name, e.details].some((v) => (v || '').toLowerCase().includes(query));
+    });
+    if (!rows.length) {
+      list.innerHTML = '<p class="py-6 text-center text-xs text-ink3">No matching entries.</p>';
+      return;
+    }
+    let table = `<div class="overflow-x-auto max-h-80 overflow-y-auto"><table class="w-full"><thead><tr class="text-[10px] font-semibold text-ink3 uppercase tracking-widest" style="border-bottom:1px solid var(--line);">
       <th class="py-2 px-3 text-left">Time</th><th class="py-2 px-3 text-left">Admin</th><th class="py-2 px-3 text-left">Action</th><th class="py-2 px-3 text-left hidden sm:table-cell">Target</th><th class="py-2 px-3 text-left hidden md:table-cell">Details</th>
     </tr></thead><tbody>`;
-    for (const e of log) {
+    for (const e of rows) {
       const date = new Date(e.created_at);
       const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-      html += `<tr style="border-bottom:1px solid var(--line);">
+      const tone = e.action.includes('banned') || e.action.includes('delete') ? 'var(--loss)' : e.action.includes('granted') ? 'var(--win)' : 'var(--ink-2)';
+      table += `<tr style="border-bottom:1px solid var(--line);">
         <td class="py-1.5 px-3 text-[10px] text-ink3 whitespace-nowrap">${timeStr}</td>
-        <td class="py-1.5 px-3 text-xs text-ink">${e.admin_name}</td>
-        <td class="py-1.5 px-3 text-xs" style="color:${e.action.includes('banned')||e.action.includes('delete')?'var(--loss)':e.action.includes('granted')?'var(--win)':'var(--ink-2)'}">${e.action}</td>
+        <td class="py-1.5 px-3 text-xs text-ink">${window.esc(e.admin_name)}</td>
+        <td class="py-1.5 px-3 text-xs" style="color:${tone}">${window.esc(e.action)}</td>
         <td class="py-1.5 px-3 text-xs text-ink2 hidden sm:table-cell">${window.esc(e.target_name)||'—'}</td>
         <td class="py-1.5 px-3 text-[10px] text-ink3 hidden md:table-cell max-w-[200px] truncate">${window.esc(e.details)||'—'}</td>
       </tr>`;
     }
-    html += '</tbody></table></div>';
+    table += '</tbody></table></div>';
+    list.innerHTML = table;
   }
-  html += '</div>';
-  $('adminContent').insertAdjacentHTML('beforeend', html);
+
+  if ($('auditSearch')) $('auditSearch').addEventListener('input', renderRows);
+  if ($('auditAction')) $('auditAction').addEventListener('change', renderRows);
+  renderRows();
+
   const clearBtn = $('clearAuditBtn');
   if (clearBtn) clearBtn.addEventListener('click', async () => {
     await showModal('Clear Audit Log','Delete all audit log entries permanently?',true);
@@ -684,20 +717,6 @@ function wireGlobal() {
 }
 
 function wirePlayerTable() {
-  document.querySelectorAll('.save-btn').forEach(btn => btn.addEventListener('click', async () => {
-    const id = btn.dataset.id;
-    const row = btn.closest('tr');
-    const inputs = row ? row.querySelectorAll('input[data-field]') : [];
-    const body = {};
-    for (const inp of inputs) {
-      const v = inp.type==='number'?parseInt(inp.value):inp.value;
-      if (inp.dataset.field==='username'&&v) body.username=v;
-      if (inp.dataset.field==='elo'&&!isNaN(v)) body.elo=v;
-      if (inp.dataset.field==='wins'&&!isNaN(v)) body.wins=v;
-      if (inp.dataset.field==='losses'&&!isNaN(v)) body.losses=v;
-    }
-    (await window.apiFetch('/api/players/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).ok ? (toast('Saved.','success'),location.reload()) : toast('Failed.','error');
-  }));
   document.querySelectorAll('.delete-btn').forEach(btn => {
     let confirm = false;
     btn.addEventListener('click', async () => {
