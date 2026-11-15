@@ -1,153 +1,154 @@
-# Vantage 🏆
+# Vantage
 
-> **Your community's ranked ladder — up and running in 2 commands.**
+A self-hosted competitive ladder for Rainbow Six communities.
 
-![Screenshot](assets/screenshot.png)
+Glicko-2 ratings, seasons, tournaments, confirmed match reporting, Rainbow Six match metadata, managed teams, and a full admin panel — server-rendered with FastAPI and PostgreSQL.
 
-A competitive ranking and match-tracking system for **Rainbow Six Siege** built for communities that want to run their own ranked ladder. Features an ELO system with provisional ratings, seasons, tournaments, Discord authentication, and a full admin panel — all wrapped in a tactical match-dossier UI with dark and light themes.
+![Vantage leaderboard](assets/screenshot.png)
 
-## ✨ What It Can Do
+[![CI](https://github.com/kashcmdd/rainbow-leaderboard/actions/workflows/ci.yml/badge.svg)](https://github.com/kashcmdd/rainbow-leaderboard/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-- **ELO Rating System** — Glicko-2 ratings (shown as ELO) with rating deviation: new players start at 500 with RD 350, shown with a Provisional badge and ±RD until they settle, win/loss outcomes, per-player team updates, and multi-format support (1v1 through 5v5). Inactivity grows RD instead of decaying the rating, so returning players move more. Scores are capped at 20 per side.
-- **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
-- **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
-- **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.
-- **Tournaments** — Brackets with visual connector lines, champion highlights, and ELO integration.
-- **Seasons** — Time-based resets with archived leaderboards you can browse anytime.
-- **Admin Panel** — Manage players, edit matches, set ELO values, bulk import from CSV, add notes, and control seasons. All with an audit log.
-- **Discord Auth** — Log in with Discord. Granular admin roles.
-- **Rank Icons** — 41 custom SVG icons from Bronze through Champion, each tier with its own distinct shape (shields, crystals, crowns, etc.).
-- **Dark Mode** — Moon/sun toggle, saved to your browser. Looks great either way.
-- **Download Data** — Export the leaderboard as CSV or JSON with one click.
+> Status: active and deployed privately on a tailnet. There is no public demo; run it locally or ask for a walkthrough.
 
-## 🧱 Tech Stack
+## What it does
 
-| Layer | Tech |
+**Ratings**
+- Glicko-2 under the hood, shown as ELO. New players start at 500 with RD 350 and a provisional badge.
+- Win/loss only: score margin does not change the swing.
+- Per-player updates inside team formats, 1v1 through 5v5.
+- Inactivity inflates RD instead of decaying the rating, so returning players move more.
+- Top positions, streaks, last-five form, weekly movement and progress to the next rank.
+
+**Match integrity**
+- Player reports are `pending` until the opponent confirms; admins can confirm directly.
+- Disputes keep the result off the ladder until an admin resolves it.
+- Evidence link, duplicate guard, rate limiting and an audit log.
+- Optional map, side (attack/defense) and operator bans.
+
+**Competition**
+- Seasons with archived standings snapshots and champions. Closing a season resets 1v1 only.
+- Tournaments with seeded brackets, automatic winner advancement and a champion on the index.
+- Managed teams with a captain, roster editor and reuse of a named lineup across matches.
+- Head-to-head records on every profile and a two-player compare page.
+
+**Experience**
+- #1 spotlight, rank art for every tier, dark and light themes, responsive from 390px up.
+- Generated 1200×630 match share cards at `/og/match/{id}.png`.
+- CSV/JSON leaderboard export and an optional Discord webhook.
+
+**Admin**
+- Player management, ELO adjustments with reasons, match editing, notes, bulk CSV import.
+- Season and tournament control, audit log with filters.
+- Integrity checks for repeated pairings, one-sided records and reporter bursts.
+
+## Stack
+
+| Layer | Choice |
 |---|---|
-| **Backend** | Python 3.12 + FastAPI |
-| **Database** | PostgreSQL 16 via asyncpg + SQLAlchemy (async) |
-| **Frontend** | Server-rendered Jinja2 + vanilla JS + Tailwind |
-| **Auth** | Discord OAuth2 |
-| **Scheduling** | APScheduler for inactivity RD inflation |
-| **Container** | Docker + Docker Compose |
-| **Migrations** | Alembic |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2 async |
+| Database | PostgreSQL 16, Alembic migrations |
+| Views | Jinja2, vanilla JS, Tailwind 3 (committed build) |
+| Ratings | Glicko-2 (`app/glicko2.py`) |
+| Jobs | APScheduler (RD inflation, season auto-close) |
+| Runtime | Docker + Docker Compose |
 
-## 🚀 Getting Started
+## Run it
 
-### You'll Need
-
-- Docker & Docker Compose
-
-### Let's Go
+Requirements: Docker and Docker Compose.
 
 ```bash
-git clone https://github.com/Martty12212/rainbow-leaderboard.git
+git clone https://github.com/kashcmdd/rainbow-leaderboard.git
 cd rainbow-leaderboard
+cp .env.example .env
+# set SECRET_KEY and POSTGRES_PASSWORD in .env
 docker compose up -d --build
 ```
 
-Open `http://localhost:8090` and you're live.
+Open `http://localhost:8090`. Migrations run automatically at startup.
 
 ### Configuration
 
-Copy `.env.example` to `.env` and fill in your details:
+`.env.example` documents every setting. The ones that matter first:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://rainbow:rainbow@db:5432/rainbow
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=change-me
+POSTGRES_PASSWORD=change-me
 SITE_NAME=Vantage
-COOKIE_SECURE=false          # true behind HTTPS
+COOKIE_SECURE=false            # true behind HTTPS
 PUBLIC_BASE_URL=http://localhost:8090
-DISCORD_CLIENT_ID=your-discord-client-id
-DISCORD_CLIENT_SECRET=your-discord-client-secret
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
 DISCORD_REDIRECT_URI=http://localhost:8090/auth/callback
-DISCORD_WEBHOOK_URL=         # optional match announcements
+DISCORD_WEBHOOK_URL=           # optional match announcements
+REQUIRE_MATCH_CONFIRMATION=true
+AUTO_CLOSE_SEASONS=false
 ```
 
-To make yourself an admin, add your Discord user ID to `admin_discord_ids` in `app/config.py`.
+To make yourself an admin, either promote the player from the admin panel or set `ADMIN_DISCORD_IDS` to your Discord user ID.
 
-### Testing without Discord
+### Local sign-in without Discord
 
-Real sign-in is Discord OAuth. For a quick local/tailnet test, set
-`DEV_LOGIN_DISCORD_ID` (and `DEV_LOGIN_ADMIN=true` if you want admin rights),
-restart, then open `/auth/dev`. Unset it for production: while it is set, anyone
-who can reach the site can log in as that user.
+For a local or tailnet test, set `DEV_LOGIN_DISCORD_ID` and open `/auth/dev`. Set `DEV_LOGIN_ADMIN=true` for admin rights. Unset both in production — while they are set, anyone who can reach the site can use that login.
 
-### Migrations
-
-The schema is managed by Alembic. `alembic upgrade head` runs automatically when the
-app starts, using a Postgres advisory lock so multiple workers cannot race.
-
-For a database created before Alembic was wired (tables but no `alembic_version`),
-startup adopts it: it verifies that no model columns are missing, converts the known
-`matches.tournament_id` column to `uuid`, and stamps the baseline. If anything else
-looks stale, startup fails with the missing columns instead of guessing.
+## Development
 
 ```bash
-alembic upgrade head          # apply migrations
-alembic revision --autogenerate -m "change"
-```
-
-Back up the database before the first deploy against an existing volume.
-
-## 🎨 Frontend
-
-Pages are server-rendered Jinja with vanilla JS. Tailwind compiles to a committed
-stylesheet at `app/static/css/tailwind.min.css`, so the container needs no Node
-build:
-
-```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pytest -q            # 50 tests
+.venv/bin/ruff check .
 npm install
-npm run tw:build   # rebuild after changing templates or input.css
-npm run tw:watch   # during development
+npm run tw:build               # after template or input.css changes
 ```
 
-Design tokens and components are documented in `DESIGN.md`; product context is in
-`PRODUCT.md`. The theme follows `localStorage`, then the system preference; append
-`?theme=light` or `?theme=dark` to force one.
+CI runs lint, the CSS drift check, `alembic upgrade head` and the test suite on every push.
 
-## 📖 API Routes
+### Project layout
 
-| Method | Path | Description |
+```
+app/
+├── routers/          # pages, matches, players, teams, tournaments, admin, OG
+├── templates/        # Jinja2 pages
+├── static/           # compiled CSS, rank icons, avatars
+├── glicko2.py        # rating maths
+├── season_service.py # snapshot + reset
+├── models.py         # SQLAlchemy models
+├── schema.py         # Alembic bootstrap/adoption
+└── config.py         # settings
+alembic/              # migrations
+tests/                # pytest suite
+main.py               # FastAPI entrypoint
+```
+
+`PRODUCT.md` holds the product context and `DESIGN.md` the design system (tokens, type, components, motion).
+
+## API
+
+Interactive docs are at `/docs` (Swagger) and `/redoc`.
+
+| Method | Path | Purpose |
 |---|---|---|
-| GET | `/leaderboard` | View the leaderboard (live or archived season) |
-| GET | `/player/{id}` | Player profile and stats |
-| GET | `/team/{id}` | Team roster, rating and matches |
-| GET | `/match/{id}` | Single match report |
-| GET | `/tournaments` | Tournament listings |
 | GET | `/api/leaderboard/{format}` | Standings (`?season=` for archives) |
-| GET | `/api/matches` | Match history |
-| GET | `/api/matches/{id}` | Match detail |
+| GET | `/api/matches` | Confirmed match history |
+| GET | `/api/matches/{id}` | Match detail, status and metadata |
 | POST | `/api/matches/preview` | ELO preview without writing |
-| POST | `/api/matches` | Report a match result |
-| GET | `/healthz` | Liveness plus database check |
+| POST | `/api/matches` | Report a result |
+| POST | `/api/matches/{id}/confirm` | Confirm a pending result |
+| POST | `/api/matches/{id}/dispute` | Dispute a result |
+| GET | `/api/players/{id}` | Profile and ratings |
+| GET | `/api/players/{id}/h2h` | Head-to-head record |
+| GET | `/api/teams` | Managed teams |
+| POST | `/api/teams` | Create a team |
+| PATCH | `/api/teams/{id}` | Edit name, roster or captain |
+| GET | `/api/admin/integrity` | Repeated pairings, one-sided records, reporter bursts |
+| GET | `/og/match/{id}.png` | Share card |
+| GET | `/healthz` | Liveness + database check |
 
-Full API docs at `/docs` (Swagger) or `/redoc`.
+## License
 
-## 📁 Project Layout
-
-```
-rainbow-leaderboard/
-├── app/
-│   ├── routers/       # API route handlers
-│   ├── templates/     # Jinja2 HTML templates
-│   ├── static/        # CSS, icons, avatars
-│   ├── config.py      # App configuration
-│   ├── database.py    # DB connection & session
-│   ├── models.py      # SQLAlchemy models
-│   ├── schemas.py     # Pydantic schemas
-│   ├── elo.py         # ELO rating logic
-│   ├── ranks.py       # Rank definitions
-│   └── schema.py      # Alembic bootstrap / adoption
-├── alembic/           # Migrations
-├── tests/             # Pytest suite
-├── main.py            # FastAPI app entrypoint
-├── package.json       # Tailwind build
-├── Dockerfile         # API container build
-├── docker-compose.yml # Service orchestration
-└── requirements.txt   # Python dependencies
-```
-
-## 📄 License
-
-Built for fun, so go ahead — use it, tweak it, break it, make it yours.
+MIT. See [LICENSE](LICENSE).
