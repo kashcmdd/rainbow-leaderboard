@@ -548,7 +548,7 @@ async def list_matches(
     out = []
     for m in matches:
         def team_name(team):
-            if team.name:
+            if team.name and team.name.upper() != "TBD":
                 return team.name
             return " + ".join(mem.player.username for mem in team.members)
 
@@ -585,7 +585,7 @@ async def get_match(match_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Match not found")
 
     def team_name(team):
-        if team.name:
+        if team.name and team.name.upper() != "TBD":
             return team.name
         return " + ".join(mem.player.username for mem in team.members)
 

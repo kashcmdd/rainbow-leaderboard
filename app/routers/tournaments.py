@@ -28,6 +28,57 @@ async def _log_audit(db, admin_user, action, target_id=None, target_name=None, d
     await db.flush()
 
 
+
+
+async def _sync_bracket(db: AsyncSession, tournament_id) -> bool:
+    """Fill empty next-round slots from completed feeder matches.
+
+    Reporting a tournament match through the normal match path used to leave
+    the following round's placeholder teams empty, so the bracket showed TBD
+    forever. This is idempotent and only copies winners into empty slots.
+    Feeders are paired by sorted position, which avoids assuming whether the
+    bracket positions are zero- or one-based.
+    """
+    matches = (await db.execute(
+        select(Match).where(
+            Match.tournament_id == tournament_id,
+            Match.bracket_round.isnot(None),
+        )
+    )).scalars().all()
+    by_round = {}
+    for m in matches:
+        by_round.setdefault(m.bracket_round, []).append(m)
+    for rnd in by_round:
+        by_round[rnd].sort(key=lambda m: m.bracket_position or 0)
+
+    changed = False
+    for rnd in sorted(by_round):
+        if rnd <= 1:
+            continue
+        previous = by_round.get(rnd - 1, [])
+        for index, m in enumerate(by_round[rnd]):
+            feeders = previous[index * 2:index * 2 + 2]
+            for side, feeder in zip(("a", "b"), feeders, strict=False):
+                target_team_id = m.team_a_id if side == "a" else m.team_b_id
+                if not target_team_id or not feeder or not feeder.winner_team_id:
+                    continue
+                existing = (await db.execute(
+                    select(TeamMember.id).where(TeamMember.team_id == target_team_id).limit(1)
+                )).scalars().first()
+                if existing:
+                    continue
+                members = (await db.execute(
+                    select(TeamMember).where(TeamMember.team_id == feeder.winner_team_id)
+                )).scalars().all()
+                target_team = await db.get(Team, target_team_id)
+                if target_team and (target_team.name or "").upper() == "TBD":
+                    target_team.name = None
+                for member in members:
+                    db.add(TeamMember(team_id=target_team_id, player_id=member.player_id))
+                    changed = True
+    return changed
+
+
 @router.get("")
 async def list_tournaments(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -40,12 +91,25 @@ async def list_tournaments(db: AsyncSession = Depends(get_db)):
             select(TournamentParticipant).where(TournamentParticipant.tournament_id == t.id)
         )
         p_list = participants.scalars().all()
+        final = (await db.execute(
+            select(Match)
+            .where(Match.tournament_id == t.id, Match.bracket_round.isnot(None))
+            .order_by(desc(Match.bracket_round), desc(Match.bracket_position))
+            .limit(1)
+        )).scalars().first()
+        winner = None
+        if final and final.winner_team_id:
+            members = (await db.execute(
+                select(Player).join(TeamMember).where(TeamMember.team_id == final.winner_team_id)
+            )).scalars().all()
+            winner = " + ".join(m.username for m in members) if members else None
         out.append({
             "id": str(t.id),
             "name": t.name,
             "status": t.status,
             "format": t.format,
             "player_count": len(p_list),
+            "winner": winner,
             "created_at": t.created_at.isoformat(),
         })
     return out
@@ -81,6 +145,10 @@ async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(ge
             "rank_color": rank[1],
         })
 
+    if await _sync_bracket(db, tournament_id):
+        await db.commit()
+        t = await db.get(Tournament, tid)
+
     matches = (await db.execute(
         select(Match)
         .where(Match.tournament_id == tournament_id)
@@ -94,7 +162,7 @@ async def get_tournament(tournament_id: uuid.UUID, db: AsyncSession = Depends(ge
     m_list = []
     for m in matches:
         def team_name(team):
-            if team.name:
+            if team.name and team.name.upper() != "TBD":
                 return team.name
             names = [mem.player.username for mem in team.members]
             return " + ".join(names) if names else "TBD"
@@ -324,7 +392,8 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
     match.score_b = score_b
     match.winner_team_id = match.team_a_id if score_a > score_b else match.team_b_id
 
-    # Advance winner to next round
+    # Advance the winner through the bracket. Pairing by sorted position keeps
+    # this correct for both zero- and one-based bracket positions.
     next_round = (match.bracket_round or 1) + 1
     all_tmt_matches = await db.execute(
         select(Match).where(Match.tournament_id == tournament_id, Match.bracket_round.isnot(None))
@@ -333,22 +402,8 @@ async def report_tournament_match(tournament_id: uuid.UUID, body: dict, db: Asyn
     total_rounds = max((m.bracket_round or 0) for m in all_m) if all_m else 0
 
     if next_round <= total_rounds:
-        next_pos = (match.bracket_position or 0) // 2
-        existing = await db.execute(
-            select(Match).where(
-                Match.tournament_id == tournament_id,
-                Match.bracket_round == next_round,
-                Match.bracket_position == next_pos,
-            )
-        )
-        next_match = existing.scalar_one_or_none()
-        if next_match:
-            winner_members = await db.execute(
-                select(Player).join(TeamMember).where(TeamMember.team_id == match.winner_team_id)
-            )
-            for wp in winner_members.scalars().all():
-                target_team_id = next_match.team_a_id if (match.bracket_position or 0) % 2 == 0 else next_match.team_b_id
-                db.add(TeamMember(team_id=target_team_id, player_id=wp.id))
+        await db.flush()
+        await _sync_bracket(db, tid)
     else:
         # Final match completed
         t.status = "completed"

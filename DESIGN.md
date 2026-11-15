@@ -85,7 +85,12 @@ Defined once in `app/static/css/input.css` (`@layer components`) and reused:
 - Report page: two-step flow with an ELO preview panel and duplicate warning.
 - Mobile patterns: 3-up stat strip on home, 3-up compact podium (rank, avatar,
   name, ELO, movement), collapsed match filters, single-row match scoreboard,
-  tournament Bracket/Participants tabs, and no roster panel for 1v1 teams.
+  match details strip, tournament Bracket/Participants tabs, and no roster
+  panel for 1v1 teams.
+- Admin keeps its section tabs at every width; they stick under the site
+  header so the page is one section at a time.
+- Player profiles include a head-to-head record and milestone badges; compare
+  uses two native player selects and side-by-side cards.
 
 Templates must not carry raw hex colours. Page-specific `<style>` blocks are
 reserved for layout quirks, not colour.
@@ -100,7 +105,7 @@ reserved for layout quirks, not colour.
 
 ## Motion
 
-- Entrance: 280ms `riseIn` (opacity + 6px), staggered in 30ms steps.
+- Entrance: 280ms `riseIn` (opacity only; no transform, so fixed modals stay anchored to the viewport), staggered in 30ms steps.
 - Bars: width transitions on load only.
 - Skeletons: 1.5s opacity pulse.
 - Everything collapses under `prefers-reduced-motion: reduce`.

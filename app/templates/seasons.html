@@ -21,25 +21,26 @@ async function loadSeasons() {
   for (const s of seasons) {
     const isActive = s.status === 'active';
     const badge = isActive ? 'badge badge-active' : 'badge badge-completed';
-    html += `<div class="season-card cursor-pointer border-b py-4" data-id="${s.id}" style="border-color:var(--line)">
+    html += `<div class="season-card ${isActive ? '' : 'cursor-pointer'} border-b py-4" data-id="${s.id}" data-expandable="${!isActive}" style="border-color:var(--line)">
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0 flex-1">
           <h2 class="truncate text-[14px] font-semibold text-ink">${s.name}</h2>
           <p class="micro mt-1">${new Date(s.start_date).toLocaleDateString()} — ${s.end_date ? new Date(s.end_date).toLocaleDateString() : 'Present'}</p>
+          ${s.champion ? `<p class="micro mt-1 normal-case">Champion: <a href="/player/${s.champion_id}" class="text-ink2 hover:text-signal">${window.esc(s.champion)}</a> · ${s.champion_elo} ELO</p>` : ''}
         </div>
         <div class="flex shrink-0 items-center gap-3">
           <span class="${badge}">${s.status}</span>
-          <span class="expand-icon micro" aria-hidden="true">▶</span>
+          ${isActive ? '<span class="micro" title="Standings are saved when the season closes">Saves at close</span>' : '<span class="expand-icon micro" aria-hidden="true">▶</span>'}
         </div>
       </div>
-      <div class="season-standings pt-3" id="standings-${s.id}" style="display:none;">
+      ${isActive ? '' : `<div class="season-standings pt-3" id="standings-${s.id}" style="display:none;">
         <div class="skeleton h-10 w-full"></div>
-      </div>
+      </div>`}
     </div>`;
   }
   document.getElementById('seasonsContent').innerHTML = html || '<div class="py-10 text-center text-xs text-ink3">No seasons yet.</div>';
 
-  document.querySelectorAll('.season-card').forEach(card => {
+  document.querySelectorAll('.season-card[data-expandable="true"]').forEach(card => {
     card.addEventListener('click', async function() {
       const id = this.dataset.id;
       const body = this.querySelector('.season-standings');

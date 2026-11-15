@@ -11,14 +11,17 @@ Public surfaces:
 - **Home** — ladder summary and recent activity.
 - **Leaderboard** — standings by format, with player and team views.
 - **Player** — profile with last-five form, weekly ELO movement, rating
-  deviation/provisional state, progress to the next tier, ELO trend, win rate,
-  season history, match history.
+  deviation/provisional state, progress to the next tier, head-to-head record,
+  milestones, ELO trend, win rate, season history, match history.
 - **Team** — roster, team rating and recent results for a repeated lineup.
 - **Match** — shareable single-match report with both sides and ELO deltas.
 - **Compare** — two-player head-to-head.
-- **Seasons** — archived 1v1 standings snapshots (the season ladder is 1v1;
-  other formats keep their ratings across seasons).
-- **Tournaments** — brackets, participants, placements.
+- **Seasons** — archived 1v1 standings snapshots and champions (the season
+  ladder is 1v1; other formats keep their ratings across seasons).
+- **Ratings** — a plain-language explanation of the rating, provisional state,
+  movement, form, ranks, and seasons.
+- **Tournaments** — brackets that advance winners, participants, placements,
+  and the champion on the index.
 - **Login / 404 / 500** — minimal supporting screens.
 
 Authenticated surfaces:
@@ -38,8 +41,8 @@ Authenticated surfaces:
 
 The dominant use is reading dense numbers quickly, often on a phone after a
 match, and trusting that the standings are current. Mobile navigation uses a
-five-item bottom bar (Ladder, Events, Seasons, Compare, More) rather than a
-hamburger.
+four-item bottom bar (Leaderboard, Tournaments, Seasons, More) rather than a
+hamburger; Compare and Ratings live in More.
 
 ## Tone
 

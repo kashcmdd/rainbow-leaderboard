@@ -120,7 +120,7 @@ async def get_recent_matches(limit: int = 50, db: AsyncSession = Depends(get_db)
     out = []
     for m in matches:
         def team_name(team):
-            if team.name:
+            if team.name and team.name.upper() != "TBD":
                 return team.name
             return " + ".join(mem.player.username for mem in team.members)
         a_name = team_name(m.team_a)

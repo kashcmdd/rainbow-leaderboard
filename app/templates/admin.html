@@ -25,10 +25,11 @@
     <a href="/" class="btn btn-sm">View site</a>
     <a href="/report" class="btn btn-sm">Report match</a>
     <a href="/leaderboard" class="btn btn-sm">Leaderboard</a>
+    <a href="/docs" target="_blank" rel="noopener" class="btn btn-sm">API docs</a>
   </div>
 </div>
 
-<div class="mb-4 flex seg md:hidden" id="adminTabs" role="tablist" aria-label="Admin sections">
+<div class="sticky z-30 mb-4 flex seg" id="adminTabs" style="top:57px;background:var(--bg)" role="tablist" aria-label="Admin sections">
   <button class="seg-item is-active" type="button" data-admin-tab="overview">Overview</button>
   <button class="seg-item" type="button" data-admin-tab="players">Players</button>
   <button class="seg-item" type="button" data-admin-tab="tournaments">Tourneys</button>
@@ -280,14 +281,16 @@ function renderDistribution(s) {
   let legend = '';
   for (const t of tiers) {
     const pct = total ? Math.round(t.count / total * 100) : 0;
-    const levels = t.levels.map((l) => {
-      const empty = l.count === 0;
-      return `<span class="num text-[12px] ${empty ? 'text-ink3' : 'text-ink2'}"${empty ? ' style="opacity:.4"' : ''} title="${l.name}: ${l.count} rating${l.count === 1 ? '' : 's'}">${l.level ? `<span class="text-ink3">${l.level}</span> ` : ''}${l.count}</span>`;
-    }).join('');
+    const levels = t.levels.some((l) => l.level)
+      ? `<span class="grid flex-1 grid-cols-5 gap-x-1">` + t.levels.map((l) => {
+          const empty = l.count === 0;
+          return `<span class="num flex items-baseline gap-1 text-[11px] ${empty ? 'text-ink3' : 'text-ink2'}"${empty ? ' style="opacity:.4"' : ''} title="${l.name}: ${l.count} rating${l.count === 1 ? '' : 's'}"><span class="text-ink3">${l.level}</span><span>${l.count}</span></span>`;
+        }).join('') + `</span>`
+      : '<span class="flex-1"></span>';
     legend += `<div class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" style="border-top:1px solid var(--line)">
-      <span class="flex w-24 shrink-0 items-center gap-2"><span class="rank-dot" style="background:${t.color}"></span><span class="text-[12px] font-semibold text-ink">${t.name}</span></span>
-      <span class="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">${levels}</span>
-      <span class="num shrink-0 text-[11px] text-ink3">${t.count} · ${pct}%</span>
+      <span class="flex w-20 shrink-0 items-center gap-2 sm:w-24"><span class="rank-dot" style="background:${t.color}"></span><span class="text-[12px] font-semibold text-ink">${t.name}</span></span>
+      <span class="order-3 w-full sm:order-none sm:w-auto sm:max-w-[360px] sm:flex-1">${levels}</span>
+      <span class="order-2 ml-auto shrink-0 sm:order-none"><span class="num text-[11px] text-ink3">${t.count} · ${pct}%</span></span>
     </div>`;
   }
 
@@ -404,8 +407,8 @@ function renderPlayerTable() {
       <td class="py-2.5 px-2 relative group">
         ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-sm open-profile" data-id="${p.id}">` : `<div class="avatar-sm open-profile flex items-center justify-center text-[10px] font-bold" style="background:var(--panel-2);color:var(--ink-3);" data-id="${p.id}">${p.username[0].toUpperCase()}</div>`}
         <div class="absolute top-0 left-0 mt-8 ml-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <button class="avatar-upload text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--signal) 20%, transparent);color:var(--signal);border:none;min-width:32px;" data-id="${p.id}">📷</button>
-          <button class="avatar-remove text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--loss) 25%, transparent);color:var(--loss);border:none;min-width:32px;" data-id="${p.id}">✕</button>
+          <button class="avatar-upload text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--signal) 20%, transparent);color:var(--signal);border:none;min-width:32px;" data-id="${p.id}">Photo</button>
+          <button class="avatar-remove text-xs px-2 py-1.5 rounded" style="background:color-mix(in srgb, var(--loss) 25%, transparent);color:var(--loss);border:none;min-width:32px;" data-id="${p.id}">Clear</button>
         </div>
       </td>
       <td class="py-2.5 px-2"><span class="open-profile text-sm font-medium cursor-pointer hover:underline" style="color:${banned?'var(--loss)':'var(--ink)'}" data-id="${p.id}">${p.username}${banned?' <span class="text-[10px] font-bold" style="color:var(--loss);">[BANNED]</span>':''}</span></td>
@@ -419,7 +422,7 @@ function renderPlayerTable() {
       <td class="py-2.5 px-2 text-right text-sm text-ink">${r.losses}</td>
       <td class="py-2.5 px-2 text-ink3 text-sm">${r.matches_played}</td>
       <td class="py-2.5 px-2"><div class="flex items-center gap-1.5"><img src="/static/rank-icons/${rank[0].toLowerCase().replace(/ /g, '_')}.svg" alt="" class="h-4 w-4"><span class="text-[11px] font-semibold whitespace-nowrap rank-elo" style="--rank-color:${rank[2]}">${rank[0]}</span></div></td>
-      <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="text-xs font-bold" style="color:var(--warn);">👑 Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'color-mix(in srgb, var(--signal) 15%, transparent)':'transparent'};color:${p.is_admin?'var(--signal)':'var(--ink-3)'};border:1px solid ${p.is_admin?'var(--signal-line)':'var(--line)'};">${p.is_admin?'🛡️ Admin':'👤 User'}</button>`}</td>
+      <td class="py-2.5 px-2 text-center hidden lg:table-cell">${isOwner ? `<span class="badge badge-warn">Owner</span>` : `<button class="admin-toggle text-xs font-bold px-2 py-1.5 rounded-lg transition-all" data-id="${p.id}" style="background:${p.is_admin?'color-mix(in srgb, var(--signal) 15%, transparent)':'transparent'};color:${p.is_admin?'var(--signal)':'var(--ink-3)'};border:1px solid ${p.is_admin?'var(--signal-line)':'var(--line)'};">${p.is_admin?'Admin':'User'}</button>`}</td>
       <td class="py-2.5 px-2 text-right"><div class="flex items-center justify-end gap-1">
         <button class="ban-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:${banned?'color-mix(in srgb, var(--win) 10%, transparent)':'color-mix(in srgb, var(--loss) 10%, transparent)'};color:${banned?'var(--win)':'var(--loss)'};border:none;" data-id="${p.id}">${banned?'Unban':'Ban'}</button>
         <button class="save-btn text-[10px] font-bold px-3 py-2 rounded-lg transition-all" style="background:var(--signal-soft);color:var(--signal);border:none;" data-id="${p.id}">Save</button>
@@ -614,7 +617,7 @@ function wireGlobal() {
           ${canStart ? `<button class="btn text-xs px-3 py-2 start-tmt-btn" data-id="${t.id}" style="color:var(--win);border-color:color-mix(in srgb, var(--win) 30%, transparent);">Start</button>` : ''}
           ${canComplete ? `<button class="btn text-xs px-3 py-2 complete-tmt-btn" data-id="${t.id}" style="color:var(--signal);border-color:var(--signal-line);">Complete</button>` : ''}
           <a href="/tournament/${t.id}" class="btn text-xs px-3 py-2">View</a>
-          <button class="btn text-xs px-3 py-2 delete-tmt-btn" data-id="${t.id}" style="color:var(--loss);border-color:color-mix(in srgb, var(--loss) 35%, transparent);">X</button>
+          <button class="btn text-xs px-3 py-2 delete-tmt-btn" data-id="${t.id}" style="color:var(--loss);border-color:color-mix(in srgb, var(--loss) 35%, transparent);">Delete</button>
         </div>
       </div>`;
     }).join('');
@@ -894,7 +897,7 @@ async function openProfilePanel(playerId) {
       <button id="saveNotesBtn" class="btn btn-pink text-xs mt-2">Save Notes</button>
     </div>`;
 
-    panel.innerHTML = `<div class="p-4 text-right"><button id="closePanel" class="btn text-xs">✕ Close</button></div>${html}`;
+    panel.innerHTML = `<div class="p-4 text-right"><button id="closePanel" class="btn text-xs">Close</button></div>${html}`;
     $('closePanel')?.addEventListener('click', closeProfilePanel);
     $('saveNotesBtn')?.addEventListener('click', async () => {
       const val = $('notesTextarea').value;
@@ -930,11 +933,10 @@ function setupAdminTabs() {
   const tabs = document.querySelectorAll('[data-admin-tab]');
   function apply(tab) {
     tabs.forEach(t => t.classList.toggle('is-active', t.dataset.adminTab === tab));
-    const mobile = window.innerWidth < 768;
     Object.entries(groups).forEach(([group, ids]) => {
       ids.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = (!mobile || group === tab) ? '' : 'none';
+        if (el) el.style.display = group === tab ? '' : 'none';
       });
     });
   }

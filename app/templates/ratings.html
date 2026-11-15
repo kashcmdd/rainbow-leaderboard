@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}How ratings work — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <p class="eyebrow">Ratings</p>
+        <h1 class="display text-[34px] leading-none sm:text-[40px]">How ratings work</h1>
+        <p class="micro mt-2">What the number means and how it moves</p>
+    </div>
+    <a href="/leaderboard" class="micro hover:text-ink">← Standings</a>
+</div>
+
+<div class="mx-auto max-w-3xl">
+    <section class="section" style="border-top:0;padding-top:0">
+        <div class="section-head"><h2 class="section-title">The short version</h2></div>
+        <p class="text-[15px] leading-relaxed text-ink2">
+            Every player has a rating. Win and it goes up; lose and it goes down. Beating someone
+            rated above you moves it more than beating someone below you. The scoreline does not
+            change the size of the swing — only who won.
+        </p>
+        <p class="mt-3 text-[15px] leading-relaxed text-ink2">
+            The site calls the number <strong class="font-semibold text-ink">ELO</strong>. Under the
+            hood it is a Glicko-2 rating, which also tracks how confident the system is in your
+            number. That confidence is what the provisional badge and the hidden RD value represent.
+        </p>
+    </section>
+
+    <section class="section">
+        <div class="section-head"><h2 class="section-title">Your number</h2></div>
+        <div class="grid gap-5 sm:grid-cols-3">
+            <div>
+                <div class="stat-label">Rating</div>
+                <p class="mt-1 text-[13px] leading-relaxed text-ink2">The headline figure on your profile and the ladder. Everyone starts at 500.</p>
+            </div>
+            <div>
+                <div class="stat-label">Provisional</div>
+                <p class="mt-1 text-[13px] leading-relaxed text-ink2">Shown while the system is still unsure about your level. Play more rated matches and it clears.</p>
+            </div>
+            <div>
+                <div class="stat-label">This week</div>
+                <p class="mt-1 text-[13px] leading-relaxed text-ink2">How much your rating has changed in the last seven days, not your total for the season.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-head"><h2 class="section-title">Reading a profile</h2></div>
+        <div class="space-y-4">
+            <div class="flex gap-4">
+                <span class="micro w-24 shrink-0 pt-1">Last 5 / Recent</span>
+                <p class="text-[13px] leading-relaxed text-ink2">Your latest results, newest first. <span class="text-ink">W L W W W</span> means you won four of the last five. “Recent” appears until there are five results to show.</p>
+            </div>
+            <div class="flex gap-4">
+                <span class="micro w-24 shrink-0 pt-1">Streak</span>
+                <p class="text-[13px] leading-relaxed text-ink2">Consecutive wins or losses. <span class="text-ink">+6 streak</span> is six wins in a row.</p>
+            </div>
+            <div class="flex gap-4">
+                <span class="micro w-24 shrink-0 pt-1">Next rank</span>
+                <p class="text-[13px] leading-relaxed text-ink2">How many rating points you need to reach the next tier. The bar fills as you close the gap.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-head"><h2 class="section-title">Ranks</h2><span class="micro">500 points per tier</span></div>
+        <div class="overflow-x-auto border" style="border-color:var(--line)">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Tier</th>
+                        <th scope="col">Rating</th>
+                        <th scope="col" class="hidden sm:table-cell">Levels</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/bronze_v.svg" alt="" class="h-5 w-5">Bronze</span></td><td class="num text-[13px]">0 – 499</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/silver_v.svg" alt="" class="h-5 w-5">Silver</span></td><td class="num text-[13px]">500 – 999</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/gold_v.svg" alt="" class="h-5 w-5">Gold</span></td><td class="num text-[13px]">1000 – 1499</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/platinum_v.svg" alt="" class="h-5 w-5">Platinum</span></td><td class="num text-[13px]">1500 – 1999</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/emerald_v.svg" alt="" class="h-5 w-5">Emerald</span></td><td class="num text-[13px]">2000 – 2499</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/diamond_v.svg" alt="" class="h-5 w-5">Diamond</span></td><td class="num text-[13px]">2500 – 2999</td><td class="hidden text-[12px] text-ink3 sm:table-cell">I – V</td></tr>
+                    <tr><td><span class="flex items-center gap-2"><img src="/static/rank-icons/champion.svg" alt="" class="h-5 w-5">Champion</span></td><td class="num text-[13px]">3000+</td><td class="hidden text-[12px] text-ink3 sm:table-cell">Top of the ladder</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="micro mt-2">The number-one player is shown as Top 1 on the ladder.</p>
+    </section>
+
+    <section class="section">
+        <div class="section-head"><h2 class="section-title">Seasons</h2></div>
+        <p class="text-[14px] leading-relaxed text-ink2">
+            The 1v1 ladder runs in seasons. Closing a season saves a standings snapshot and resets
+            1v1 ratings for the next one. Other formats keep their ratings. Archived seasons stay
+            readable from the Seasons page.
+        </p>
+    </section>
+
+    <section class="section">
+        <div class="section-head"><h2 class="section-title">Reporting</h2></div>
+        <p class="text-[14px] leading-relaxed text-ink2">
+            Signed-in players can report a result from the Report page. The form previews the rating
+            swing first; submit once. The same pairing cannot be reported twice in a row, and
+            reporting is rate-limited.
+        </p>
+        <a href="/report" class="btn mt-4">Report a match</a>
+    </section>
+</div>
+{% endblock %}

@@ -21,7 +21,7 @@ const TMT_ID = '{{ tournament_id }}';
 async function loadTournament() {
   const t = await (await fetch(`/api/tournaments/${TMT_ID}`)).json();
   document.getElementById('tournamentName').textContent = t.name;
-  document.getElementById('tournamentMeta').textContent = `${t.status.toUpperCase()} · ${t.format} · ${t.participants.length} players`;
+  document.getElementById('tournamentMeta').textContent = `${t.status.toUpperCase()} · ${t.format} · ${t.participants.length} ${t.participants.length === 1 ? 'player' : 'players'}`;
 
   let html = `<div class="mb-3 flex seg lg:hidden" role="tablist" aria-label="Tournament sections">
       <button id="tabBracket" type="button" class="seg-item" role="tab">Bracket</button>
@@ -30,11 +30,11 @@ async function loadTournament() {
     <div class="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">`;
 
   // Participants
-  html += `<div class="panel hidden lg:block" id="participantsPanel"><div class="section-head px-4 pt-3 mb-0"><h3 class="stat-label mb-0">Participants</h3><span class="micro">${t.participants.length}</span></div><div class="px-4 py-2">`;
+  html += `<div class="panel hidden lg:block" id="participantsPanel"><div class="section-head px-4 pt-3 mb-0"><h3 class="stat-label mb-0">Participants</h3><span class="micro">${t.participants.length}</span></div><div class="flex items-center justify-between px-4 pb-1"><span class="micro">Player</span><span class="micro">Rank</span></div><div class="px-4 py-2">`;
   for (const p of t.participants) {
     html += `<div class="flex items-center justify-between gap-2 border-b py-2 last:border-b-0" style="border-color:var(--line)">
       <span class="truncate text-[13px]"><span class="num mr-2 text-[11px] text-ink3">${String(p.seed).padStart(2, '0')}</span>${p.username}</span>
-      <span class="rank-chip shrink-0" style="--rank-color:${p.rank_color}">${p.rank_title}</span>
+      <span class="rank-chip shrink-0" style="--rank-color:${p.rank_color}" title="Ladder rank: ${p.rank_title}">${p.rank_title}</span>
     </div>`;
   }
   html += `</div></div>`;

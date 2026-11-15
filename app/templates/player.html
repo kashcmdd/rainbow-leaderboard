@@ -195,6 +195,27 @@ function drawEloChart(canvas, history) {
     ctx.fill();
 }
 
+// ─── HEAD TO HEAD ───────────────────────────────────────
+
+function renderH2H(rows) {
+    if (!rows || !rows.length) return '';
+    var html = '<div class="section mt-0"><div class="section-head"><h3 class="stat-label mb-0">Head to head</h3>' +
+        '<span class="micro">' + rows.length + (rows.length === 1 ? ' opponent' : ' opponents') + '</span></div><div>';
+    rows.forEach(function (r) {
+        var total = r.wins + r.losses;
+        var wr = total ? Math.round(r.wins / total * 100) : 0;
+        var name = r.id
+            ? '<a href="/player/' + r.id + '" class="min-w-0 flex-1 truncate text-[13px] transition-colors hover:text-signal">' + esc(r.opponent) + '</a>'
+            : '<span class="min-w-0 flex-1 truncate text-[13px]">' + esc(r.opponent) + '</span>';
+        html += '<div class="flex items-center gap-3 border-b py-2.5 last:border-b-0" style="border-color:var(--line)">' +
+            name +
+            '<span class="num shrink-0 text-[11px]"><span style="color:var(--win)">' + r.wins + 'W</span> <span class="text-ink3">/</span> <span style="color:var(--loss)">' + r.losses + 'L</span></span>' +
+            '<div class="meter hidden w-16 sm:block"><span style="width:' + wr + '%;background:var(--signal)"></span></div>' +
+            '<span class="num w-8 shrink-0 text-right text-[11px] text-ink3">' + wr + '%</span></div>';
+    });
+    return html + '</div></div>';
+}
+
 // ─── PROFILE ─────────────────────────────────────────────
 
 function renderProfile(root, state) {
@@ -276,7 +297,7 @@ function renderProfile(root, state) {
         (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '" title="Current win/loss streak">' + (best.streak > 0 ? '+' : '') + best.streak + ' streak</span>' : '') +
         (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn btn-sm">Edit</a>' : '') +
         '</div>' +
-        (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">Last 5</span>' + formTicks + '</div>' : '') +
+        (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">' + (form.length >= 5 ? 'Last 5' : 'Recent') + '</span>' + formTicks + '</div>' : '') +
         (best && best.provisional ? '<p class="mt-2 text-[11px] text-ink3">Rating is still settling — play more matches.</p>' : '') +
         '</div></div>' +
         '<div class="mt-4 flex flex-col gap-3 sm:mt-5 sm:flex-row sm:items-end sm:justify-between">' +
@@ -297,7 +318,9 @@ function renderProfile(root, state) {
         renderStatCell('Best ELO', elo.toLocaleString()) +
         renderStatCell('Best rank', best ? best.rank_title : '—') +
         renderStatCell('Discord', p.discord_id ? 'Linked' : '—') +
-        '</div></section>';
+        '</div>' +
+        renderMilestones(best, totWins, totPlayed) +
+        '</section>';
 
     var body = '<section class="section mb-0" style="border-top:0;padding-top:0">' +
         '<div class="section-head"><h3 class="stat-label mb-0">Performance</h3>' +
@@ -309,6 +332,7 @@ function renderProfile(root, state) {
         (sparkData.length > 1 ? renderSparkline(sparkData, cssVar('--signal') || '#e8197d') : '') +
         '</div></section>' +
         renderMatchHistory(state, p) +
+        (state.h2h && state.h2h.opponents ? renderH2H(state.h2h.opponents) : '') +
         (state.eloHistory.length >= 2
             ? '<div class="section mt-0"><div class="section-head mb-3 sm:mb-4"><h3 class="stat-label mb-0">ELO trend</h3><span class="micro">' + state.eloHistory.length + ' changes</span></div><canvas id="eloChart" height="200" style="width:100%;height:200px"></canvas></div>'
             : '') +
@@ -337,6 +361,20 @@ function renderProfile(root, state) {
     wireMatchFilters(state, p);
 }
 
+function renderMilestones(best, wins, played) {
+    var badges = [];
+    if (wins >= 1) badges.push('First win');
+    if (best && best.streak >= 5) badges.push(best.streak + '-win streak');
+    if (best && best.top_position && best.top_position <= 3) badges.push('Top ' + best.top_position);
+    if (best && best.elo >= 3000) badges.push('Champion rank');
+    if (played >= 50) badges.push('50 matches');
+    if (!badges.length) return '';
+    return '<div class="mt-4 flex flex-wrap items-center gap-2">' +
+        '<span class="micro mr-1">Milestones</span>' +
+        badges.map(function (b) { return '<span class="badge normal-case">' + esc(b) + '</span>'; }).join('') +
+        '</div>';
+}
+
 function renderStatCell(label, value) {
     return '<div class="bg-bg px-4 py-3">' +
         '<div class="stat-label">' + label + '</div>' +
@@ -354,8 +392,8 @@ function renderAvatar(p, rank, initial) {
         '<div class="relative flex h-20 w-20 items-center justify-center overflow-hidden border sm:h-24 sm:w-24" style="border-color:var(--line-strong);background:var(--panel-2)">' +
         '<div id="avatarContent" class="flex h-full w-full items-center justify-center">' + avatarHtml + '</div></div>' +
         (IS_ADMIN
-            ? '<button id="avatarPickerBtn" class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center border" style="background:var(--signal);border-color:var(--signal);color:#fff" aria-label="Change avatar">' +
-              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
+            ? '<button id="avatarPickerBtn" class="absolute right-1 top-1 flex h-7 w-7 items-center justify-center border transition-colors" style="background:color-mix(in srgb, var(--bg) 82%, transparent);border-color:var(--line-strong);color:var(--ink-2)" aria-label="Change avatar" title="Change avatar">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>' +
               '<div id="avatarPicker" class="panel absolute left-0 top-full z-30 mt-2 hidden w-52 p-2">' +
               '<input id="avatarFileInput" type="file" accept="image/*" class="hidden">' +
               '<button id="avatarUploadBtn" class="w-full px-3 py-2 text-left text-xs font-semibold text-signal hover:bg-panel2">Upload image</button>' +
@@ -529,21 +567,6 @@ function wireMatchFilters(state, p) {
     dt.addEventListener('change', handler);
 }
 
-async function loadData() {
-    var root = document.getElementById('playerRoot');
-    try {
-        var [pd, matchesRes, seasonsRes, eloHist] = await Promise.all([
-            fetch('/api/players/' + PLAYER_ID).then(r => r.json()),
-            fetch('/api/matches?player_id=' + PLAYER_ID + '&limit=50').then(r => r.json()),
-            fetch('/api/players/' + PLAYER_ID + '/seasons').then(r => r.json()).catch(() => []),
-            fetch('/api/players/' + PLAYER_ID + '/history').then(r => r.json()).catch(() => []),
-        ]);
-        renderProfile(root, { player: pd, matches: matchesRes, seasons: seasonsRes, eloHistory: eloHist });
-    } catch (e) {
-        root.innerHTML = '<div class="panel p-12 text-center"><div class="mb-4 text-sm" style="color:var(--loss)">Failed to load player.</div><a href="/" class="btn">Go Home</a></div>';
-    }
-}
-
 // ─── AVATAR PICKER ───────────────────────────────────────
 
 function wireAvatarPicker(root, state, rank, initial) {
@@ -650,6 +673,7 @@ function animateBars() {
         matches: [],
         eloHistory: [],
         seasons: [],
+        h2h: { opponents: [] },
         loadState: 'loading',
     };
 
@@ -668,12 +692,14 @@ function animateBars() {
         var mr = await fetch('/api/matches?player_id=' + PLAYER_ID + '&limit=50');
         if (mr.ok) state.matches = await mr.json();
 
-        var [histRes, seasonsRes] = await Promise.all([
+        var [histRes, seasonsRes, h2hRes] = await Promise.all([
             fetch('/api/players/' + PLAYER_ID + '/history?limit=200'),
             fetch('/api/players/' + PLAYER_ID + '/seasons'),
+            fetch('/api/players/' + PLAYER_ID + '/h2h'),
         ]);
         if (histRes.ok) state.eloHistory = await histRes.json();
         if (seasonsRes.ok) state.seasons = await seasonsRes.json();
+        if (h2hRes.ok) state.h2h = await h2hRes.json();
 
         state.loadState = 'loaded';
         renderProfile(root, state);

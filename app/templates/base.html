@@ -63,6 +63,7 @@
                 {{ nav_link('/leaderboard', 'Leaderboard', path == '/leaderboard') }}
                 {{ nav_link('/tournaments', 'Tournaments', path.startswith('/tournament')) }}
                 {{ nav_link('/seasons', 'Seasons', path == '/seasons') }}
+                {{ nav_link('/ratings', 'Ratings', path == '/ratings') }}
                 {{ nav_link('/compare', 'Compare', path == '/compare') }}
                 {% if request.session.get("user") %}
                     {{ nav_link('/report', 'Report', path == '/report') }}
@@ -94,6 +95,7 @@
             <button id="sheetClose" type="button" class="text-[11px] font-medium uppercase tracking-wider text-ink3" aria-label="Close menu">Close</button>
         </div>
         <nav class="flex flex-col">
+            <a href="/ratings" class="sheet-link{% if path == '/ratings' %} is-active{% endif %}">How ratings work</a>
             <a href="/compare" class="sheet-link{% if path == '/compare' %} is-active{% endif %}">Compare</a>
             {% if request.session.get("user") %}
                 <a href="/report" class="sheet-link{% if path == '/report' %} is-active{% endif %}">Report match</a>

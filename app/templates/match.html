@@ -59,7 +59,7 @@ async function loadMatch() {
 
     root.innerHTML = `
         <section class="border-y" style="border-color:var(--line)">
-            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-6 sm:gap-6 sm:py-10">
+            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pt-6 pb-5 sm:gap-6 sm:pt-10 sm:pb-6">
                 ${side(m.team_a_name, m.team_a_players, m.elo_delta_a, aWon, decided)}
                 <div class="text-center">
                     <div class="num text-[34px] font-semibold leading-none sm:text-[56px]">${m.score_a}<span class="mx-1 text-ink3 sm:mx-2">:</span>${m.score_b}</div>
@@ -67,11 +67,21 @@ async function loadMatch() {
                 </div>
                 ${side(m.team_b_name, m.team_b_players, m.elo_delta_b, decided && !aWon, decided)}
             </div>
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t px-4 py-2.5 sm:px-8 sm:py-3" style="border-color:var(--line)">
-                <span class="micro">${esc(m.format)} · <span class="text-ink2">${esc(date)}</span></span>
-                ${m.tournament_id ? `<a href="/tournament/${m.tournament_id}" class="micro text-signal hover:underline">Bracket</a>` : ''}
+            <div class="grid grid-cols-2 gap-px border-t sm:grid-cols-4" style="border-color:var(--line);background:var(--line)">
+                ${detailCell('Format', esc(m.format.toUpperCase()))}
+                ${detailCell('Match ID', '<span class="text-[11px]">' + esc(String(MATCH_ID).slice(0, 8)) + '</span>')}
+                ${detailCell('ELO swing', Math.abs(m.elo_delta_a || 0) + Math.abs(m.elo_delta_b || 0) + ' pts')}
+                ${detailCell('Ladder', m.tournament_id ? 'Tournament' : 'Open')}
             </div>
+            ${m.tournament_id ? `<div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t px-4 py-2.5 sm:px-8 sm:py-3" style="border-color:var(--line)">
+                <span class="micro">Tournament match</span>
+                <a href="/tournament/${m.tournament_id}" class="micro text-signal hover:underline">View bracket →</a>
+            </div>` : ''}
         </section>`;
+}
+
+function detailCell(label, value) {
+    return '<div class="bg-bg px-4 py-3"><div class="stat-label">' + label + '</div><div class="num mt-1 text-[14px] font-semibold text-ink">' + value + '</div></div>';
 }
 
 loadMatch();

@@ -165,13 +165,25 @@ async def list_seasons_public(db: AsyncSession = Depends(get_db)):
         select(Season).order_by(Season.start_date.desc())
     )
     seasons = result.scalars().all()
-    return [{
-        "id": str(s.id),
-        "name": s.name,
-        "status": s.status,
-        "start_date": s.start_date.isoformat(),
-        "end_date": s.end_date.isoformat() if s.end_date else None,
-    } for s in seasons]
+    out = []
+    for s in seasons:
+        champion = (await db.execute(
+            select(SeasonSnapshot)
+            .where(SeasonSnapshot.season_id == s.id)
+            .order_by(SeasonSnapshot.position)
+            .limit(1)
+        )).scalars().first()
+        out.append({
+            "id": str(s.id),
+            "name": s.name,
+            "status": s.status,
+            "start_date": s.start_date.isoformat(),
+            "end_date": s.end_date.isoformat() if s.end_date else None,
+            "champion": champion.player_name if champion else None,
+            "champion_id": str(champion.player_id) if champion else None,
+            "champion_elo": champion.elo if champion else None,
+        })
+    return out
 
 
 @router.get("/seasons/{season_id}")
@@ -227,7 +239,7 @@ async def get_team_leaderboard(
     entries = []
     for i, r in enumerate(ratings, 1):
         team = r.team
-        if team and team.name:
+        if team and team.name and team.name.upper() != "TBD":
             name = team.name
         elif team:
             name = " + ".join(m.player.username for m in team.members) if team.members else "Unknown Team"

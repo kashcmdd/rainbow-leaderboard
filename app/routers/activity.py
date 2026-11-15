@@ -46,7 +46,7 @@ async def get_activity(limit: int = Query(20, ge=1, le=50), db: AsyncSession = D
 
     for m in matches:
         def team_name(team):
-            if team and team.name:
+            if team and team.name and team.name.upper() != "TBD":
                 return team.name
             if team:
                 return " + ".join(mem.player.username for mem in team.members)

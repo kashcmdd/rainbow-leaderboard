@@ -305,6 +305,76 @@ class TestTournaments:
         assert complete.status_code == 200
 
 
+class TestBracketProgression:
+    async def test_semis_fill_the_final_and_winner_is_listed(self, client, admin_headers, admin_allowlist):
+        ids = []
+        for name in ("bracket-a", "bracket-b", "bracket-c", "bracket-d"):
+            p = await _create_player(client, admin_headers, name)
+            ids.append(p["id"])
+
+        create = await client.post(
+            "/api/tournaments",
+            json={"name": "Progression Cup", "format": "1v1"},
+            headers=admin_headers,
+        )
+        tid = create.json()["id"]
+        await client.post(
+            f"/api/tournaments/{tid}/add-players",
+            json={"player_ids": ids},
+            headers=admin_headers,
+        )
+        start = await client.post(f"/api/tournaments/{tid}/start", headers=admin_headers)
+        assert start.status_code == 200
+
+        detail = await client.get(f"/api/tournaments/{tid}")
+        semis = [m for m in detail.json()["matches"] if m["round"] == 1]
+        assert len(semis) == 2
+        winners = []
+        for match in semis:
+            winners.append(match["team_a_name"])
+            report = await client.post(
+                f"/api/tournaments/{tid}/report-match",
+                json={"match_id": match["id"], "score_a": 3, "score_b": 1},
+                headers=admin_headers,
+            )
+            assert report.status_code == 200
+
+        # The final must show the two semi-final winners, not TBD.
+        detail = await client.get(f"/api/tournaments/{tid}")
+        final = next(m for m in detail.json()["matches"] if m["round"] == 2)
+        assert final["team_a_name"] != "TBD"
+        assert final["team_b_name"] != "TBD"
+        assert {final["team_a_name"], final["team_b_name"]} == set(winners)
+
+        report = await client.post(
+            f"/api/tournaments/{tid}/report-match",
+            json={"match_id": final["id"], "score_a": 3, "score_b": 1},
+            headers=admin_headers,
+        )
+        assert report.status_code == 200
+
+        listed = await client.get("/api/tournaments")
+        row = next(t for t in listed.json() if t["id"] == tid)
+        assert row["status"] == "completed"
+        assert row["winner"] == final["team_a_name"]
+
+
+class TestRatingsPage:
+    async def test_explains_the_system(self, anon_client):
+        res = await anon_client.get("/ratings")
+        assert res.status_code == 200
+        assert "How ratings work" in res.text
+        assert "Provisional" in res.text
+
+
+class TestHeadToHead:
+    async def test_empty_history_returns_an_empty_list(self, client, admin_headers):
+        player = await _create_player(client, admin_headers, "h2h-empty")
+        res = await client.get(f"/api/players/{player['id']}/h2h")
+        assert res.status_code == 200
+        assert res.json() == {"opponents": []}
+
+
 class TestDevLogin:
     async def test_disabled_by_default(self, anon_client, monkeypatch):
         monkeypatch.setattr(settings, "dev_login_discord_id", "")

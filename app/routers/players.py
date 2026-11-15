@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -166,6 +166,67 @@ async def compare_players(
             "matches": match_list,
         },
     }
+
+
+
+
+@router.get("/{player_id}/h2h")
+async def get_player_h2h(player_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    team_ids = (await db.execute(
+        select(TeamMember.team_id).where(TeamMember.player_id == player_id)
+    )).scalars().all()
+    if not team_ids:
+        return {"opponents": []}
+
+    matches = (await db.execute(
+        select(Match)
+        .options(
+            selectinload(Match.team_a).selectinload(Team.members).selectinload(TeamMember.player),
+            selectinload(Match.team_b).selectinload(Team.members).selectinload(TeamMember.player),
+        )
+        .where(or_(Match.team_a_id.in_(team_ids), Match.team_b_id.in_(team_ids)))
+        .order_by(Match.played_at.desc())
+    )).scalars().all()
+
+    record = {}
+    for m in matches:
+        a_ids = {mem.player_id for mem in m.team_a.members}
+        b_ids = {mem.player_id for mem in m.team_b.members}
+        if player_id in a_ids:
+            is_a = True
+        elif player_id in b_ids:
+            is_a = False
+        else:
+            continue
+        opponent_team = m.team_b if is_a else m.team_a
+        opponent_members = opponent_team.members
+        if len(opponent_members) == 1:
+            opponent_id = str(opponent_members[0].player_id)
+            opponent_name = opponent_members[0].player.username
+        else:
+            opponent_id = None
+            names = [mem.player.username for mem in opponent_members]
+            opponent_name = " + ".join(names) if names else (opponent_team.name or "Unknown")
+        key = opponent_id or opponent_name
+        won = (m.winner_team_id == m.team_a_id and is_a) or (m.winner_team_id == m.team_b_id and not is_a)
+        rec = record.setdefault(key, {
+            "id": opponent_id,
+            "opponent": opponent_name,
+            "wins": 0,
+            "losses": 0,
+            "last_played": m.played_at,
+        })
+        rec["wins" if won else "losses"] += 1
+        if m.played_at > rec["last_played"]:
+            rec["last_played"] = m.played_at
+
+    opponents = sorted(
+        record.values(),
+        key=lambda r: (-(r["wins"] + r["losses"]), -r["last_played"].timestamp()),
+    )
+    for r in opponents:
+        r["last_played"] = r["last_played"].isoformat()
+    return {"opponents": opponents[:12]}
 
 
 @router.get("/{player_id}")

@@ -64,7 +64,7 @@ async function loadTeam() {
     }
     const t = await res.json();
     document.getElementById('teamName').textContent = t.name;
-    document.getElementById('teamMeta').textContent = `${t.format.toUpperCase()} · ${t.matches_played} matches · ${t.wins}W ${t.losses}L`;
+    document.getElementById('teamMeta').textContent = `${t.format.toUpperCase()} · ${t.matches_played} ${t.matches_played === 1 ? 'match' : 'matches'} · ${t.wins}W ${t.losses}L`;
 
     const members = t.members.map(m => `
         <a href="/player/${m.id}" class="flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0" style="border-color:var(--line)">
@@ -112,8 +112,8 @@ async function loadTeam() {
                     </div>
                     </div>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
-                        <span class="micro">Last 5</span>${formTicks(t.form)}
-                        <span class="micro">7d <span style="color:${t.movement_7d > 0 ? 'var(--win)' : t.movement_7d < 0 ? 'var(--loss)' : 'var(--ink-3)'}">${t.movement_7d > 0 ? '+' : ''}${t.movement_7d}</span></span>
+                        ${t.form && t.form.length ? `<span class="micro">Last 5</span>${formTicks(t.form)}` : ''}
+                        ${t.movement_7d ? `<span class="micro">7d <span style="color:${t.movement_7d > 0 ? 'var(--win)' : 'var(--loss)'}">${t.movement_7d > 0 ? '+' : ''}${t.movement_7d}</span></span>` : ''}
                     </div>
                     ${trend(t.history)}
                 </div>

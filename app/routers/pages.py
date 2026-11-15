@@ -111,6 +111,11 @@ async def tournament_page(request: Request, tournament_id: str):
 async def seasons_page(request: Request):
     return templates.TemplateResponse(request, "seasons.html")
 
+
+@router.get("/ratings", response_class=HTMLResponse)
+async def ratings_page(request: Request):
+    return templates.TemplateResponse(request, "ratings.html")
+
 @router.get("/report", response_class=HTMLResponse)
 async def report_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = request.session.get("user")

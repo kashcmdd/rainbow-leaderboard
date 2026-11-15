@@ -105,17 +105,17 @@ function renderComparison(container, data) {
         var wr = totWins + totLosses > 0 ? (totWins / (totWins + totLosses) * 100).toFixed(0) : 0;
         var initial = player.username.charAt(0).toUpperCase();
         var rankIcon = best.rank_title.toLowerCase().replace(/ /g, '_') + '.svg';
-        return '<div class="panel p-5" style="border-top:2px solid ' + (side === 1 ? 'var(--signal)' : 'var(--line-strong)') + '">' +
+        return '<div class="panel p-3 sm:p-5" style="border-top:2px solid ' + (side === 1 ? 'var(--signal)' : 'var(--line-strong)') + '">' +
             '<div class="flex flex-col items-center text-center">' +
-            '<div class="flex h-16 w-16 items-center justify-center overflow-hidden border text-lg font-semibold" style="border-color:var(--line);background:var(--panel-2);color:var(--ink-2)">' +
+            '<div class="flex h-12 w-12 items-center justify-center overflow-hidden border text-base font-semibold sm:h-16 sm:w-16 sm:text-lg" style="border-color:var(--line);background:var(--panel-2);color:var(--ink-2)">' +
             (player.avatar_url ? '<img src="' + window.esc(player.avatar_url) + '" alt="" class="h-full w-full object-cover">' : initial) +
             '</div>' +
-            '<h2 class="display mt-3 text-[24px] leading-none">' + window.esc(player.username) + '</h2>' +
-            '<div class="mt-2 flex items-center gap-2">' +
-            '<img src="/static/rank-icons/' + rankIcon + '" alt="" class="h-5 w-auto">' +
-            '<span class="rank-chip" style="--rank-color:' + best.rank_color + '">' + window.esc(best.rank_title) + '</span></div>' +
-            '<div class="num rank-elo mt-3 text-[34px] font-semibold leading-none" style="--rank-color:' + best.rank_color + '">' + best.elo + '</div>' +
-            '<div class="num mt-2 flex items-center gap-2 text-[11px]">' +
+            '<h2 class="display mt-2 truncate text-[18px] leading-none sm:mt-3 sm:text-[24px]">' + window.esc(player.username) + '</h2>' +
+            '<div class="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 sm:mt-2 sm:gap-2">' +
+            '<img src="/static/rank-icons/' + rankIcon + '" alt="" class="h-4 w-auto sm:h-5">' +
+            '<span class="rank-chip !px-1.5 !text-[9px] sm:!px-2.5 sm:!text-[10px]" style="--rank-color:' + best.rank_color + '">' + window.esc(best.rank_title) + '</span></div>' +
+            '<div class="num rank-elo mt-2 text-[24px] font-semibold leading-none sm:mt-3 sm:text-[34px]" style="--rank-color:' + best.rank_color + '">' + best.elo + '</div>' +
+            '<div class="num mt-1.5 flex items-center gap-1.5 text-[10px] sm:mt-2 sm:gap-2 sm:text-[11px]">' +
             '<span style="color:var(--win)">' + totWins + 'W</span>' +
             '<span class="text-ink3">/</span>' +
             '<span style="color:var(--loss)">' + totLosses + 'L</span>' +
@@ -129,7 +129,7 @@ function renderComparison(container, data) {
         var wrP2 = h.total_matches > 0 ? (h.player2_wins / h.total_matches * 100).toFixed(0) : 0;
         var p1pct = h.total_matches > 0 ? (h.player1_wins / h.total_matches * 100) : 0;
         return '<div class="panel mt-4 p-5">' +
-            '<div class="section-head"><h3 class="stat-label mb-0">Head to head</h3><span class="micro">' + h.total_matches + (h.total_matches === 1 ? ' match' : ' matches') + '</span></div>' +
+            '<div class="section-head"><h3 class="stat-label mb-0">Meetings</h3><span class="micro">' + h.total_matches + (h.total_matches === 1 ? ' match' : ' matches') + '</span></div>' +
             '<div class="flex items-center justify-center gap-6 py-2">' +
             '<div class="text-center"><div class="num text-[28px] font-semibold leading-none" style="color:var(--win)">' + h.player1_wins + '</div><div class="micro mt-1 max-w-[120px] truncate">' + window.esc(p1.username) + '</div></div>' +
             '<div class="display text-[20px] text-ink3">VS</div>' +
@@ -165,11 +165,11 @@ function renderComparison(container, data) {
     }
 
     container.innerHTML =
-        '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">' +
+        h2hCard(h2h) +
+        '<div class="mt-4 grid grid-cols-2 gap-2 sm:gap-3">' +
         playerCard(p1, p1Best, 1) +
         playerCard(p2, p2Best, 2) +
         '</div>' +
-        h2hCard(h2h) +
         matchList(h2h.matches);
 }
 

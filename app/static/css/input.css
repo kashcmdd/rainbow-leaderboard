@@ -56,6 +56,7 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    caret-color: var(--signal);
   }
 
   body {
@@ -613,6 +614,18 @@
     .seg-item {
       padding-left: 8px;
       padding-right: 8px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .seg-item {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-sm {
+      min-height: 36px;
     }
   }
 
