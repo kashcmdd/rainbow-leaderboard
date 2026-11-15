@@ -21,7 +21,7 @@
     --line-strong: rgba(255, 255, 255, 0.16);
     --ink: #e9edee;
     --ink-2: #a3adb1;
-    --ink-3: #6f7a7f;
+    --ink-3: #7b868b;
     --signal: #e8197d;
     --signal-soft: rgba(232, 25, 125, 0.12);
     --signal-line: rgba(232, 25, 125, 0.42);
@@ -43,7 +43,7 @@
     --line-strong: rgba(20, 23, 26, 0.26);
     --ink: #15181a;
     --ink-2: #4d565b;
-    --ink-3: #7c868b;
+    --ink-3: #626c70;
     --signal: #c9126b;
     --signal-soft: rgba(201, 18, 107, 0.1);
     --signal-line: rgba(201, 18, 107, 0.34);
@@ -325,6 +325,120 @@
     border-bottom-color: var(--signal);
   }
 
+  /* ── Mobile tab bar + sheet ───────────────────────────── */
+  :root {
+    --tabbar-h: 58px;
+  }
+
+  body {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  }
+
+  @media (min-width: 768px) {
+    body {
+      padding-bottom: 0;
+    }
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    align-items: stretch;
+    background: color-mix(in srgb, var(--bg) 96%, transparent);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+    backdrop-filter: blur(8px);
+  }
+
+  .tab-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: var(--tabbar-h);
+    padding: 7px 2px 6px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    transition: color 0.12s ease;
+  }
+
+  .tab-item:hover {
+    color: var(--ink-2);
+  }
+
+  .tab-item.is-active {
+    color: var(--ink);
+  }
+
+  .tab-item.is-active .tab-icon {
+    color: var(--signal);
+  }
+
+  .tab-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--ink-3);
+    transition: color 0.12s ease;
+  }
+
+  body.sheet-open .tabbar {
+    opacity: 0.35;
+  }
+
+  .tabbar {
+    transition: opacity 0.15s ease;
+  }
+
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    z-index: 60;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 10px 16px 14px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+
+  .sheet-link {
+    display: flex;
+    align-items: center;
+    padding: 11px 2px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+
+  .sheet-link:last-child {
+    border-bottom: 0;
+  }
+
+  .sheet-link:hover,
+  .sheet-link.is-active {
+    color: var(--ink);
+  }
+
+  .sheet-link.is-active {
+    box-shadow: inset 2px 0 0 var(--signal);
+    padding-left: 8px;
+  }
+
   .theme-toggle {
     @apply inline-flex h-8 w-8 items-center justify-center;
     border: 1px solid var(--line-strong);
@@ -471,6 +585,13 @@
     border-right: 0;
   }
 
+  @media (max-width: 639px) {
+    .seg-item {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+  }
+
   .seg-item:hover {
     color: var(--ink);
     background: var(--panel-2);
@@ -591,6 +712,20 @@
 
   .wr-track {
     stroke: var(--line);
+  }
+
+  .match-filters {
+    display: none;
+  }
+
+  .match-filters.is-open {
+    display: flex;
+  }
+
+  @media (min-width: 1024px) {
+    .match-filters {
+      display: flex;
+    }
   }
 
   .wr-value {

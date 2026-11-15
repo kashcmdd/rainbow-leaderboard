@@ -77,6 +77,8 @@ class LeaderboardEntry(BaseModel):
     win_rate: float
     streak: int = 0
     avatar_url: Optional[str] = None
+    form: list[str] = []
+    movement_7d: int = 0
 
 
 class MatchOut(BaseModel):

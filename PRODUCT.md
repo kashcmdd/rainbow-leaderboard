@@ -10,7 +10,8 @@ Public surfaces:
 
 - **Home** — ladder summary and recent activity.
 - **Leaderboard** — standings by format, with player and team views.
-- **Player** — profile, ELO trend, win rate, season history, match history.
+- **Player** — profile with last-five form, weekly ELO movement, progress to the
+  next tier, ELO trend, win rate, season history, match history.
 - **Team** — roster, team rating and recent results for a repeated lineup.
 - **Match** — shareable single-match report with both sides and ELO deltas.
 - **Compare** — two-player head-to-head.
@@ -35,7 +36,9 @@ Authenticated surfaces:
 - **Spectators** reading the ladder and head-to-head records.
 
 The dominant use is reading dense numbers quickly, often on a phone after a
-match, and trusting that the standings are current.
+match, and trusting that the standings are current. Mobile navigation uses a
+five-item bottom bar (Ladder, Events, Seasons, Compare, More) rather than a
+hamburger.
 
 ## Tone
 

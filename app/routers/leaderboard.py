@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -7,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Player, Rating, Season, SeasonSnapshot, Team, TeamMember
+from app.models import Player, Rating, RatingHistory, Season, SeasonSnapshot, Team, TeamMember
 from app.ranks import RANKS, TOP_RANK_MIN_ELO, get_rank
 from app.schemas import LeaderboardEntry
 
@@ -65,6 +66,8 @@ async def get_leaderboard(
                     win_rate=round((s.wins or 0) / total, 3) if total > 0 else 0.0,
                     streak=0,
                     avatar_url=avatar_map.get(s.player_id),
+                    form=[],
+                    movement_7d=0,
                 ))
             return entries
 
@@ -101,6 +104,27 @@ async def get_leaderboard(
     result = await db.execute(q)
     ratings = result.scalars().all()
 
+    # Recent form (last five results) and ELO movement over the last seven days.
+    history_map = {}
+    rating_ids = [r.id for r in ratings]
+    if rating_ids:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        rows = (await db.execute(
+            select(RatingHistory.rating_id, RatingHistory.elo_before,
+                   RatingHistory.elo_after, RatingHistory.changed_at)
+            .where(
+                RatingHistory.rating_id.in_(rating_ids),
+                RatingHistory.changed_at >= cutoff,
+            )
+            .order_by(desc(RatingHistory.changed_at))
+        )).all()
+        for rating_id, before, after, _changed in rows:
+            delta = after - before
+            bucket = history_map.setdefault(rating_id, {"form": [], "movement": 0})
+            if delta != 0 and len(bucket["form"]) < 5:
+                bucket["form"].append("W" if delta > 0 else "L")
+            bucket["movement"] += delta
+
     entries = []
     for i, r in enumerate(ratings, 1):
         total = r.wins + r.losses
@@ -119,6 +143,8 @@ async def get_leaderboard(
             win_rate=win_rate,
             streak=r.streak or 0,
             avatar_url=r.player.avatar_url if r.player else None,
+            form=history_map.get(r.id, {}).get("form", []),
+            movement_7d=history_map.get(r.id, {}).get("movement", 0),
         ))
     return entries
 

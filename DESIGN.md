@@ -24,7 +24,7 @@ and canvases read the same names.
 | `--line-strong` | `rgba(255,255,255,.16)` | `rgba(20,23,26,.26)` |
 | `--ink` | `#e9edee` | `#15181a` |
 | `--ink-2` | `#a3adb1` | `#4d565b` |
-| `--ink-3` | `#6f7a7f` | `#7c868b` |
+| `--ink-3` | `#7b868b` | `#626c70` |
 | `--signal` | `#e8197d` | `#c9126b` |
 | `--signal-ink` | `#f45aa3` | `#c9126b` |
 | `--win` | `#59d38c` | `#1f8a4d` |
@@ -73,10 +73,17 @@ Defined once in `app/static/css/input.css` (`@layer components`) and reused:
 - `.nav-link`, `.nav-stack`, `.theme-toggle`.
 - `.skeleton` (opacity pulse), `.alert` (`-error`, `-success`).
 - `.bracket-round`, `.bracket-match`, `.tbd`.
+- `.tabbar` / `.tab-item` / `.sheet` / `.sheet-link` — mobile bottom navigation
+  and the “More” sheet. Visible below `md`; body reserves
+  `58px + env(safe-area-inset-bottom)`.
+- Form ticks (five bordered W/L squares) and the movement label (`+24 7d`).
 - Season selector in the leaderboard toolbar; archived seasons show a signal
   note and hide the Teams tab.
 - Match/team dossiers reuse the same panel, badge, meter and rank-chip pieces.
 - Report page: two-step flow with an ELO preview panel and duplicate warning.
+- Mobile patterns: 3-up stat strip on home, 3-up compact podium (rank, avatar,
+  name, ELO, movement), collapsed match filters, single-row match scoreboard,
+  tournament Bracket/Participants tabs, and no roster panel for 1v1 teams.
 
 Templates must not carry raw hex colours. Page-specific `<style>` blocks are
 reserved for layout quirks, not colour.

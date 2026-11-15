@@ -164,7 +164,8 @@ function drawEloChart(canvas, history) {
     ctx.fillStyle = labelColor;
     ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
-    var labelStep = Math.max(1, Math.floor(labels.length / 5));
+    var maxLabels = W < 420 ? 3 : 6;
+    var labelStep = Math.max(1, Math.ceil(labels.length / maxLabels));
     for (var i = 0; i < labels.length; i += labelStep) {
         var lx = Math.min(Math.max(x(i), pad.left + 22), W - pad.right + 16);
         ctx.fillText(labels[i], lx, H - 5);
@@ -235,37 +236,75 @@ function renderProfile(root, state) {
 
     var initial = p.username.charAt(0).toUpperCase();
     var rankFilename = rank.label.toLowerCase().replace(/ /g, '_') + '.svg';
+    var elo = best ? best.elo : 0;
 
-    var header = '<div class="panel mb-4 overflow-hidden">' +
-        '<div class="flex flex-col gap-5 p-5 sm:p-6 md:flex-row md:items-center">' +
+    // Last five results, newest first.
+    var form = state.matches.slice(0, 5).map(function (m) {
+        return isPlayerInTeam(p.username, m.winner_name) ? 'W' : 'L';
+    });
+
+    // ELO change from matches in the last 7 days.
+    var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    var movement = state.eloHistory.reduce(function (sum, e) {
+        return new Date(e.timestamp).getTime() >= weekAgo ? sum + (e.elo_after - e.elo_before) : sum;
+    }, 0);
+
+    var currentRank = getRank(elo);
+    var nextRank = RANK_MAP.find(function (r) { return r.threshold > elo; });
+    var progressPct = 0, toNext = 0, nextLabel = '';
+    if (nextRank) {
+        var span = nextRank.threshold - currentRank.threshold;
+        progressPct = span > 0 ? Math.min(100, Math.max(0, ((elo - currentRank.threshold) / span) * 100)) : 0;
+        toNext = nextRank.threshold - elo;
+        nextLabel = nextRank.label;
+    }
+
+    var formTicks = form.map(function (r) {
+        var color = r === 'W' ? 'var(--win)' : 'var(--loss)';
+        return '<span class="num flex h-4 w-4 items-center justify-center border text-[9px] font-semibold" style="border-color:' + color + ';color:' + color + '">' + r + '</span>';
+    }).join('');
+
+    var progressBlock = nextRank
+        ? '<div class="w-32 sm:w-48"><div class="micro flex items-center justify-between"><span>' + nextLabel + '</span><span>' + toNext + ' ELO</span></div>' +
+          '<div class="meter mt-1.5"><span style="width:' + progressPct + '%;background:var(--signal)"></span></div></div>'
+        : '<div class="micro text-right">' + (best && best.top_position ? 'Top ' + best.top_position : 'Champion') + '</div>';
+
+    var header = '<div class="panel mb-3 overflow-hidden sm:mb-4">' +
+        '<div class="p-4 sm:p-6">' +
+        '<div class="flex items-center gap-4 sm:gap-6">' +
         renderAvatar(p, rank, initial) +
-        '<div class="min-w-0 flex-1 text-center md:text-left">' +
-        '<p class="eyebrow justify-center md:justify-start">Player dossier</p>' +
-        '<h1 class="display truncate text-[34px] leading-none sm:text-[42px]">' + esc(p.username) + '</h1>' +
-        '<div class="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">' +
+        '<div class="min-w-0 flex-1">' +
+        '<p class="eyebrow">Player dossier</p>' +
+        '<h1 class="display truncate text-[30px] leading-none sm:text-[42px]">' + esc(p.username) + '</h1>' +
+        '<div class="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">' +
         '<span class="rank-chip" style="--rank-color:' + rank.color + '">' +
         '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-3.5 w-3.5">' + esc(rank.label) + '</span>' +
         '<span class="micro">' + totPlayed.toLocaleString() + ' matches</span>' +
         '<span class="micro" style="color:var(--ink-2)">' + wr.toFixed(0) + '% WR</span>' +
         (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '">' + (best.streak > 0 ? '+' : '') + best.streak + '</span>' : '') +
         (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn btn-sm">Edit</a>' : '') +
-        '</div></div>' +
-        '<div class="flex shrink-0 items-center justify-center gap-4 md:flex-col md:items-end md:gap-2">' +
-        '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-12 w-auto">' +
-        '<div class="text-center md:text-right">' +
-        '<div id="eloCounter" class="num rank-elo text-[38px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
-        '<span class="micro">ELO rating</span></div></div>' +
         '</div>' +
+        (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">Form</span>' + formTicks + '</div>' : '') +
+        '</div></div>' +
+        '<div class="mt-4 flex items-end justify-between gap-4 sm:mt-5">' +
+        '<div class="flex items-center gap-3">' +
+        '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-10 w-auto sm:h-12">' +
+        '<div>' +
+        '<div id="eloCounter" class="num rank-elo text-[32px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
+        '<div class="micro mt-1">ELO · <span style="color:' + (movement > 0 ? 'var(--win)' : movement < 0 ? 'var(--loss)' : 'var(--ink-3)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span></div>' +
+        '</div></div>' +
+        progressBlock +
+        '</div></div>' +
         // stat strip
         '<div class="grid grid-cols-2 gap-px border-t sm:grid-cols-4" style="border-color:var(--line);background:var(--line)">' +
         renderStatCell('Matches', totPlayed.toLocaleString()) +
-        renderStatCell('Best ELO', (best ? best.elo : 0).toLocaleString()) +
+        renderStatCell('Best ELO', elo.toLocaleString()) +
         renderStatCell('Best rank', best ? best.rank_title : '—') +
         renderStatCell('Discord', p.discord_id ? 'Linked' : '—') +
         '</div></div>';
 
-    var body = '<div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-12">' +
-        '<div class="panel flex flex-col items-center justify-center p-5 lg:col-span-4">' +
+    var body = '<div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:gap-4 lg:grid-cols-12">' +
+        '<div class="panel hidden flex-col items-center justify-center p-5 lg:col-span-4 lg:flex">' +
         '<h3 class="stat-label mb-3">Win rate</h3>' +
         renderWinRateCircle(wr, rank.color) +
         '<div class="num mt-4 flex items-center gap-3 text-[12px]">' +
@@ -273,18 +312,18 @@ function renderProfile(root, state) {
         '<span class="text-ink3">/</span>' +
         '<span style="color:var(--loss)">' + totLosses + 'L</span></div>' +
         '</div>' +
-        '<div class="panel space-y-4 p-5 lg:col-span-8">' +
+        '<div class="panel space-y-4 p-4 sm:p-5 lg:col-span-8">' +
         '<h3 class="stat-label">Performance</h3>' +
         renderBar('Wins', totWins, totPlayed, 'var(--win)', 200) +
         renderBar('Losses', totLosses, totPlayed, 'var(--loss)', 320) +
         renderBar('Win rate', Math.round(wr), 100, 'var(--signal)', 440) +
         (sparkData.length > 1 ? renderSparkline(sparkData, cssVar('--signal') || '#e8197d') : '') +
         '</div></div>' +
+        renderMatchHistory(state, p) +
         (state.eloHistory.length >= 2
-            ? '<div class="panel mb-4 p-5"><div class="section-head mb-4"><h3 class="stat-label mb-0">ELO trend</h3><span class="micro">' + state.eloHistory.length + ' changes</span></div><canvas id="eloChart" height="220" style="width:100%;height:220px"></canvas></div>'
+            ? '<div class="panel mb-3 mt-3 p-4 sm:mb-4 sm:mt-4 sm:p-5"><div class="section-head mb-3 sm:mb-4"><h3 class="stat-label mb-0">ELO trend</h3><span class="micro">' + state.eloHistory.length + ' changes</span></div><canvas id="eloChart" height="200" style="width:100%;height:200px"></canvas></div>'
             : '') +
-        (state.seasons.length > 0 ? renderSeasons(state.seasons) : '') +
-        renderMatchHistory(state, p);
+        (state.seasons.length > 0 ? renderSeasons(state.seasons) : '');
 
     root.innerHTML = header + body;
 
@@ -327,7 +366,7 @@ function renderAvatar(p, rank, initial) {
         avatarHtml = '<img src="' + esc(p.avatar_url) + '" alt="' + esc(p.username) + '" class="absolute inset-0 h-full w-full object-cover" id="profileAvatarImg">';
     }
     return '<div class="relative shrink-0 self-center md:self-auto" id="avatarWrap">' +
-        '<div class="relative flex h-24 w-24 items-center justify-center overflow-hidden border" style="border-color:var(--line-strong);background:var(--panel-2)">' +
+        '<div class="relative flex h-20 w-20 items-center justify-center overflow-hidden border sm:h-24 sm:w-24" style="border-color:var(--line-strong);background:var(--panel-2)">' +
         '<div id="avatarContent" class="flex h-full w-full items-center justify-center">' + avatarHtml + '</div></div>' +
         (IS_ADMIN
             ? '<button id="avatarPickerBtn" class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center border" style="background:var(--signal);border-color:var(--signal);color:#fff" aria-label="Change avatar">' +
@@ -398,26 +437,32 @@ function renderSparkline(data, color) {
         '</svg></div>';
 }
 
+function renderMatchRows(matches, playerName, expanded) {
+    if (matches.length === 0) {
+        return '<div class="px-4 py-10 text-center text-xs text-ink3">No matches yet.</div>';
+    }
+    var limit = expanded ? matches.length : 10;
+    var html = matches.slice(0, limit).map(function (m) { return renderMatchRow(m, playerName); }).join('');
+    if (!expanded && matches.length > 10) {
+        html += '<button id="matchesMore" type="button" class="micro w-full py-3 hover:text-ink">Show all ' + matches.length + '</button>';
+    }
+    return html;
+}
+
 function renderMatchHistory(state, p) {
-    var head = '<div class="panel">' +
-        '<div class="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style="border-color:var(--line)">' +
+    return '<div class="panel mb-3 sm:mb-4">' +
+        '<div class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3" style="border-color:var(--line)">' +
         '<h2 class="display text-[18px] leading-none">Recent matches</h2>' +
-        '<div class="flex flex-wrap items-center gap-2">' +
+        '<button id="filterToggle" type="button" class="btn btn-sm lg:hidden" aria-expanded="false" aria-controls="matchFilters">Filters</button>' +
+        '<div id="matchFilters" class="match-filters w-full flex-wrap items-center gap-2 lg:w-auto">' +
         '<select id="formatFilter" class="field !w-auto !py-1.5 text-xs" aria-label="Filter by format">' +
         '<option value="">All formats</option>' +
         '<option value="1v1">1v1</option><option value="2v2">2v2</option><option value="3v3">3v3</option>' +
         '<option value="4v4">4v4</option><option value="5v5">5v5</option></select>' +
         '<input type="date" id="dateFrom" class="field !w-auto !py-1.5 text-xs" aria-label="From date">' +
         '<input type="date" id="dateTo" class="field !w-auto !py-1.5 text-xs" aria-label="To date">' +
-        '<span class="micro flex items-center gap-1.5"><span class="tick" style="color:var(--win)"></span>Win</span>' +
-        '<span class="micro flex items-center gap-1.5"><span class="tick" style="color:var(--loss)"></span>Loss</span>' +
         '</div></div>' +
-        '<div id="matchHistoryContainer">' +
-        (state.matches.length === 0
-            ? '<div class="px-4 py-10 text-center text-xs text-ink3">No matches yet.</div>'
-            : state.matches.slice(0, 15).map(function(m) { return renderMatchRow(m, p.username); }).join('')) +
-        '</div></div>';
-    return head;
+        '<div id="matchHistoryContainer">' + renderMatchRows(state.matches, p.username, false) + '</div></div>';
 }
 
 function renderMatchRow(match, playerName) {
@@ -466,6 +511,27 @@ function renderSeasons(seasons) {
 }
 
 function wireMatchFilters(state, p) {
+    var container = document.getElementById('matchHistoryContainer');
+    function bindMore() {
+        var more = document.getElementById('matchesMore');
+        if (more && container) {
+            more.addEventListener('click', function () {
+                container.innerHTML = renderMatchRows(state.matches, p.username, true);
+                bindMore();
+            });
+        }
+    }
+    bindMore();
+
+    var toggle = document.getElementById('filterToggle');
+    var filters = document.getElementById('matchFilters');
+    if (toggle && filters) {
+        toggle.addEventListener('click', function () {
+            var open = filters.classList.toggle('is-open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+
     var fmt = document.getElementById('formatFilter');
     var df = document.getElementById('dateFrom');
     var dt = document.getElementById('dateTo');
@@ -478,11 +544,9 @@ function wireMatchFilters(state, p) {
         var mr = await fetch(url);
         if (mr.ok) {
             state.matches = await mr.json();
-            var container = document.getElementById('matchHistoryContainer');
             if (container) {
-                container.innerHTML = state.matches.length === 0
-                    ? '<div class="px-4 py-10 text-center text-xs text-ink3">No matches yet.</div>'
-                    : state.matches.slice(0, 15).map(function(m) { return renderMatchRow(m, p.username); }).join('');
+                container.innerHTML = renderMatchRows(state.matches, p.username, false);
+                bindMore();
             }
         }
     };

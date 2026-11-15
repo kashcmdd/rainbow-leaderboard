@@ -5,7 +5,7 @@
 <div class="page-head">
     <div>
         <p class="eyebrow">Ladder</p>
-        <h1 class="display text-[34px] leading-none sm:text-[40px]">Leaderboard</h1>
+        <h1 class="display text-[30px] leading-none sm:text-[40px]">Leaderboard</h1>
         <p class="micro mt-2">Standings · auto-refresh 10s</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -23,11 +23,12 @@
     </div>
 </div>
 
-<div class="panel mb-4 flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
-    <div class="relative flex-1">
+<div class="panel mb-3 p-2.5 sm:mb-4 sm:flex sm:items-center sm:gap-2 sm:p-3">
+    <div class="relative sm:flex-1">
         <svg class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input id="playerSearch" class="field pl-9" placeholder="Search player or team" autocomplete="off" aria-label="Search leaderboard">
     </div>
+    <div class="mt-2 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:items-center">
     <div class="sm:w-44">
         <select id="rankFilter" class="field" aria-label="Filter by rank">
             <option value="">All ranks</option>
@@ -42,6 +43,7 @@
     </div>
     <div id="seasonWrap" class="hidden sm:w-48">
         <select id="seasonFilter" class="field" aria-label="Season"></select>
+    </div>
     </div>
 </div>
 
@@ -111,6 +113,20 @@ function pad2(n) {
     return String(n).padStart(2, '0');
 }
 
+function movementLabel(value) {
+    if (!value) return '';
+    var color = value > 0 ? 'var(--win)' : 'var(--loss)';
+    return '<span style="color:' + color + '">' + (value > 0 ? '+' : '') + value + '</span> <span class="text-ink3">7d</span>';
+}
+
+function formTicks(form) {
+    if (!form || !form.length) return '';
+    return form.map(function (r) {
+        var color = r === 'W' ? 'var(--win)' : 'var(--loss)';
+        return '<span class="num flex h-3 w-3 items-center justify-center border text-[8px] font-semibold" style="border-color:' + color + ';color:' + color + '">' + r + '</span>';
+    }).join('');
+}
+
 async function loadLeaderboard() {
     const scrollY = window.scrollY;
     const qs = new URLSearchParams();
@@ -140,7 +156,7 @@ async function loadLeaderboard() {
 
     // ── TOP 3 ──
     if (top3.length > 0) {
-        html += `<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">`;
+        html += `<div class="mb-3 grid grid-cols-3 gap-2 md:mb-4 md:gap-3">`;
         top3.forEach(function (e, i) {
             const place = i + 1;
             const wr = (e.win_rate * 100).toFixed(0);
@@ -149,7 +165,24 @@ async function loadLeaderboard() {
             const initial = e.name.charAt(0).toUpperCase();
             const topRule = place === 1 ? 'var(--signal)' : 'var(--line-strong)';
             html += `
-            <a href="${e._linkPrefix}${e._id}" class="panel card-hover relative p-4 pt-3.5 animate-slide-up" style="border-top:2px solid ${topRule};">
+            <a href="${e._linkPrefix}${e._id}" class="panel card-hover relative p-2.5 animate-slide-up md:hidden" style="border-top:2px solid ${topRule};">
+                <div class="flex items-center justify-between gap-1">
+                    <span class="display text-[22px] leading-none text-ink3">${pad2(place)}</span>
+                    <span class="text-[9px] font-semibold" style="color:${rc}">${wr}%</span>
+                </div>
+                <div class="mt-2 flex items-center gap-2">
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden border text-[10px] font-semibold" style="border-color:var(--line);background:var(--panel-2);color:${rc};">
+                        ${avatar ? `<img src="${avatar}" alt="" class="h-full w-full object-cover">` : initial}
+                    </div>
+                    <div class="min-w-0">
+                        <div class="truncate text-[12px] font-semibold leading-tight">${e.name}</div>
+                        <div class="num text-[9px]" style="color:${rc}">${e.elo}</div>
+                    </div>
+                </div>
+                ${e.movement_7d ? `<div class="num mt-1.5 text-right text-[9px]">${movementLabel(e.movement_7d)}</div>` : ''}
+                <div class="meter mt-1.5"><span style="width:${wr}%;background:${rc}"></span></div>
+            </a>
+            <a href="${e._linkPrefix}${e._id}" class="panel card-hover relative hidden p-4 pt-3.5 animate-slide-up md:block" style="border-top:2px solid ${topRule};">
                 <div class="flex items-start justify-between gap-2">
                     <span class="display text-[36px] leading-none text-ink3">${pad2(place)}</span>
                     <span class="rank-chip" style="--rank-color:${rc}">
@@ -192,7 +225,7 @@ async function loadLeaderboard() {
         <thead><tr>
             <th scope="col" class="w-12">#</th>
             <th>${TAB === 'teams' ? 'Team' : 'Player'}</th>
-            <th>Rank</th>
+            <th scope="col" class="hidden sm:table-cell">Rank</th>
             <th scope="col" class="text-right">ELO</th>
             <th scope="col" class="hidden text-right sm:table-cell">W</th>
             <th scope="col" class="hidden text-right sm:table-cell">L</th>
@@ -210,12 +243,23 @@ async function loadLeaderboard() {
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden border text-[10px] font-semibold" style="border-color:var(--line);background:var(--panel-2);color:${rc};">
                         ${entry.avatar_url ? `<img src="${entry.avatar_url}" alt="" class="h-full w-full object-cover">` : initial}
                     </div>
-                    <a href="${entry._linkPrefix}${entry._id}" class="truncate text-[13px] font-semibold text-ink transition-colors hover:text-signal">${entry.name}</a>
-                    ${entry.streak ? `<span class="num text-[10px]" style="color:${entry.streak > 0 ? 'var(--win)' : 'var(--loss)'}">${entry.streak > 0 ? '+' : ''}${entry.streak}</span>` : ''}
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <a href="${entry._linkPrefix}${entry._id}" class="truncate text-[13px] font-semibold text-ink transition-colors hover:text-signal">${entry.name}</a>
+                            ${entry.streak ? `<span class="num text-[10px]" style="color:${entry.streak > 0 ? 'var(--win)' : 'var(--loss)'}">${entry.streak > 0 ? '+' : ''}${entry.streak}</span>` : ''}
+                            <span class="rank-chip ml-auto !px-1.5 !text-[9px] sm:hidden" style="--rank-color:${rc}">
+                                ${entry.rank_title}
+                            </span>
+                        </div>
+                        <div class="num mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px]">
+                            ${movementLabel(entry.movement_7d)}
+                            <span class="flex items-center gap-0.5">${formTicks(entry.form)}</span>
+                        </div>
+                    </div>
                 </div>
             </td>
-            <td>
-                <span class="rank-chip" style="--rank-color:${rc}">
+            <td class="hidden sm:table-cell">
+                <span class="rank-chip !px-1.5 !text-[9px] md:!px-2.5 md:!text-[10px]" style="--rank-color:${rc}">
                     <img src="/static/rank-icons/${entry.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="" class="h-3.5 w-3.5">
                     ${entry.rank_title}
                 </span>

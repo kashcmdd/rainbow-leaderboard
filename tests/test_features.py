@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 
 from app.config import settings
 from app.database import async_session
@@ -111,6 +112,34 @@ class TestMatchDetail:
         # The exact same result twice is rejected.
         duplicate = await _report(client, admin_headers, "detail-a", "detail-b", 5, 2)
         assert duplicate.status_code == 409
+
+
+class TestLeaderboardSignals:
+    async def test_form_and_weekly_movement(self, client, admin_headers):
+        await _create_player(client, admin_headers, "signal-a")
+        b = await _create_player(client, admin_headers, "signal-b")
+
+        # Give the loser a rating above the floor so losses are recorded.
+        async with async_session() as db:
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == uuid.UUID(b["id"]), Rating.format == "1v1")
+            )).scalar_one()
+            rating.elo = 1200
+            await db.commit()
+
+        assert (await _report(client, admin_headers, "signal-a", "signal-b", 3, 1)).status_code == 200
+        assert (await _report(client, admin_headers, "signal-a", "signal-b", 4, 2)).status_code == 200
+
+        board = await client.get("/api/leaderboard/1v1")
+        assert board.status_code == 200
+        entry = next(e for e in board.json() if e["name"] == "signal-a")
+        assert entry["form"][0] == "W"
+        assert 1 <= len(entry["form"]) <= 5
+        assert entry["movement_7d"] > 0
+
+        loser = next(e for e in board.json() if e["name"] == "signal-b")
+        assert loser["form"][0] == "L"
+        assert loser["movement_7d"] < 0
 
 
 class TestPlayerHistory:
