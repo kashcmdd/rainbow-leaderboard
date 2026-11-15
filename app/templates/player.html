@@ -265,7 +265,7 @@ function renderProfile(root, state) {
     }).join('');
 
     var progressBlock = nextRank
-        ? '<div class="w-32 sm:w-48"><div class="micro flex items-center justify-between"><span>' + nextLabel + '</span><span>' + toNext + ' ELO</span></div>' +
+        ? '<div class="w-32 sm:w-48"><div class="micro flex items-center justify-between"><span>Next: ' + nextLabel + '</span><span>' + toNext + ' ELO</span></div>' +
           '<div class="meter mt-1.5"><span style="width:' + progressPct + '%;background:var(--signal)"></span></div></div>'
         : '<div class="micro text-right">' + (best && best.top_position ? 'Top ' + best.top_position : 'Champion') + '</div>';
 
@@ -281,11 +281,12 @@ function renderProfile(root, state) {
         '<img src="/static/rank-icons/' + rankFilename + '" alt="" class="h-3.5 w-3.5">' + esc(rank.label) + '</span>' +
         '<span class="micro">' + totPlayed.toLocaleString() + ' matches</span>' +
         '<span class="micro" style="color:var(--ink-2)">' + wr.toFixed(0) + '% WR</span>' +
-        (best && best.provisional ? '<span class="badge badge-warn">Provisional</span>' : '') +
+        (best && best.provisional ? '<span class="badge badge-warn" title="Rating is still settling">Provisional</span>' : '') +
         (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '">' + (best.streak > 0 ? '+' : '') + best.streak + '</span>' : '') +
         (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn btn-sm">Edit</a>' : '') +
         '</div>' +
         (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">Form</span>' + formTicks + '</div>' : '') +
+        (best && best.provisional ? '<p class="micro mt-2" style="color:var(--warn)">Provisional · rating settles after more matches</p>' : '') +
         '</div></div>' +
         '<div class="mt-4 flex items-end justify-between gap-4 sm:mt-5">' +
         '<div class="flex items-center gap-3">' +
@@ -294,8 +295,7 @@ function renderProfile(root, state) {
         '<div class="stat-label">ELO</div>' +
         '<div id="eloCounter" class="num rank-elo text-[32px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
         '<div class="micro mt-1">' +
-        (best && best.rd ? '±' + Math.round(best.rd) + ' RD' : '') +
-        (movement ? ' · <span style="color:' + (movement > 0 ? 'var(--win)' : 'var(--loss)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span>' : '') +
+        (movement ? '<span style="color:' + (movement > 0 ? 'var(--win)' : 'var(--loss)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span>' : '&nbsp;') +
         '</div>' +
         '</div></div>' +
         progressBlock +

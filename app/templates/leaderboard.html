@@ -186,7 +186,7 @@ async function loadLeaderboard() {
                 <div class="flex items-start justify-between gap-2">
                     <span class="display text-[36px] leading-none text-ink3">${pad2(place)}</span>
                     <span class="flex items-center gap-1.5">
-                        ${e.provisional ? '<span class="badge badge-warn">PROV</span>' : ''}
+                        ${e.provisional ? '<span class="badge badge-warn" title="Rating is still settling">PROV</span>' : ''}
                         <span class="rank-chip" style="--rank-color:${rc}">
                             <img src="/static/rank-icons/${e.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="" class="h-4 w-4">
                             ${e.rank_title}
@@ -255,7 +255,7 @@ async function loadLeaderboard() {
                             </span>
                         </div>
                         <div class="num mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px]">
-                            ${entry.provisional ? `<span class="badge badge-warn !px-1 !text-[8px]" title="Provisional · RD ${entry.rd}">PROV</span>` : ''}
+                            ${entry.provisional ? `<span class="badge badge-warn !px-1 !text-[9px]" title="Rating is still settling">PROV</span>` : ''}
                             ${movementLabel(entry.movement_7d)}
                             <span class="flex items-center gap-0.5">${formTicks(entry.form)}</span>
                         </div>
