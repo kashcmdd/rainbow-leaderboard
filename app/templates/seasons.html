@@ -21,8 +21,8 @@ async function loadSeasons() {
   for (const s of seasons) {
     const isActive = s.status === 'active';
     const badge = isActive ? 'badge badge-active' : 'badge badge-completed';
-    html += `<div class="panel season-card mb-3 cursor-pointer card-hover" data-id="${s.id}">
-      <div class="flex items-center justify-between gap-3 p-4">
+    html += `<div class="season-card cursor-pointer border-b py-4" data-id="${s.id}" style="border-color:var(--line)">
+      <div class="flex items-center justify-between gap-3">
         <div class="min-w-0 flex-1">
           <h2 class="truncate text-[14px] font-semibold text-ink">${s.name}</h2>
           <p class="micro mt-1">${new Date(s.start_date).toLocaleDateString()} — ${s.end_date ? new Date(s.end_date).toLocaleDateString() : 'Present'}</p>
@@ -32,12 +32,12 @@ async function loadSeasons() {
           <span class="expand-icon micro" aria-hidden="true">▶</span>
         </div>
       </div>
-      <div class="season-standings px-4 pb-4" id="standings-${s.id}" style="display:none;">
+      <div class="season-standings pt-3" id="standings-${s.id}" style="display:none;">
         <div class="skeleton h-10 w-full"></div>
       </div>
     </div>`;
   }
-  document.getElementById('seasonsContent').innerHTML = html || '<div class="panel px-4 py-10 text-center text-xs text-ink3">No seasons yet.</div>';
+  document.getElementById('seasonsContent').innerHTML = html || '<div class="py-10 text-center text-xs text-ink3">No seasons yet.</div>';
 
   document.querySelectorAll('.season-card').forEach(card => {
     card.addEventListener('click', async function() {

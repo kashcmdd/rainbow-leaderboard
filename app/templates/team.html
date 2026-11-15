@@ -83,7 +83,7 @@ async function loadTeam() {
     const matches = t.recent_matches.length === 0
         ? '<div class="px-4 py-10 text-center text-xs text-ink3">No matches recorded.</div>'
         : t.recent_matches.map(m => `
-            <a href="/match/${m.id}" class="flex items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0 hover:bg-panel2" style="border-color:var(--line)">
+            <a href="/match/${m.id}" class="flex items-center justify-between gap-3 border-b py-3 last:border-b-0 hover:bg-panel2" style="border-color:var(--line)">
                 <div class="flex min-w-0 items-center gap-3">
                     <span class="badge ${m.result === 'win' ? 'badge-win' : 'badge-loss'}">${m.result === 'win' ? 'W' : 'L'}</span>
                     <span class="truncate text-[13px] font-semibold">${esc(m.opponent)}</span>
@@ -97,9 +97,11 @@ async function loadTeam() {
 
     const solo = t.format === '1v1' && t.members.length === 1;
     root.innerHTML = `
-        <div class="panel mb-3 overflow-hidden sm:mb-4">
-            <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                <div>
+        <section class="mb-5 border-b pb-5" style="border-color:var(--line)">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-4">
+                    <img src="/static/rank-icons/${t.rank_title.toLowerCase().replace(/ /g, '_')}.svg" alt="" class="h-14 w-14 sm:h-16 sm:w-16">
+                    <div>
                     <div class="stat-label">Team rating</div>
                     <div class="num rank-elo mt-1 text-[42px] font-semibold leading-none" style="--rank-color:${t.rank_color}">${t.elo}</div>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
@@ -107,6 +109,7 @@ async function loadTeam() {
                         ${t.provisional ? '<span class="badge badge-warn" title="Rating is still settling">Provisional</span>' : ''}
                         <span class="micro">${t.wins}W / ${t.losses}L</span>
                         ${t.streak ? `<span class="badge ${t.streak > 0 ? 'badge-win' : 'badge-loss'}">${t.streak > 0 ? '+' : ''}${t.streak}</span>` : ''}
+                    </div>
                     </div>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                         <span class="micro">Last 5</span>${formTicks(t.form)}
@@ -120,10 +123,10 @@ async function loadTeam() {
                     <div class="bg-panel px-4 py-3"><div class="stat-label">Losses</div><div class="num mt-1 text-[15px] font-semibold" style="color:var(--loss)">${t.losses}</div></div>
                 </div>
             </div>
-        </div>
-        <div class="grid grid-cols-1 gap-3 sm:gap-4 ${solo ? '' : 'lg:grid-cols-3'}">
-            ${solo ? '' : `<div class="panel"><div class="section-head px-4 pt-3 mb-0"><h2 class="display text-[18px] leading-none">Roster</h2><span class="micro">${t.members.length}</span></div><div class="px-4 py-1">${members}</div></div>`}
-            <div class="panel ${solo ? '' : 'lg:col-span-2'}"><div class="section-head px-4 pt-3 mb-0"><h2 class="display text-[18px] leading-none">Recent matches</h2><span class="micro">${t.recent_matches.length}</span></div><div>${matches}</div></div>
+        </section>
+        <div class="grid grid-cols-1 gap-6 ${solo ? '' : 'lg:grid-cols-3'}">
+            ${solo ? '' : `<div><div class="section-head"><h2 class="section-title">Roster</h2><span class="micro">${t.members.length}</span></div><div>${members}</div></div>`}
+            <div class="${solo ? '' : 'lg:col-span-2'}"><div class="section-head"><h2 class="section-title">Recent matches</h2><span class="micro">${t.recent_matches.length}</span></div><div>${matches}</div></div>
         </div>`;
 }
 
