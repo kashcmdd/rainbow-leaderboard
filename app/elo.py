@@ -16,10 +16,18 @@ def margin_multiplier(score_a: int, score_b: int, weight: float = settings.margi
 
 
 def k_factor(rating: int, matches_played: int, is_new: bool = False, format: str = "1v1") -> float:
-    if is_new or matches_played < settings.provisional_matches:
-        base = float(settings.new_player_k)
+    new_k = float(settings.new_player_k)
+    base_k = float(settings.base_k)
+    provisional = settings.provisional_matches
+
+    if is_new or matches_played < provisional:
+        base = new_k
+    elif settings.k_ramp_matches > 0 and matches_played < provisional + settings.k_ramp_matches:
+        # Ramp linearly from new-player K to base K instead of a cliff.
+        progress = (matches_played - provisional) / settings.k_ramp_matches
+        base = new_k + (base_k - new_k) * progress
     else:
-        base = float(settings.base_k)
+        base = base_k
 
     fmt_mult = settings.format_k_multipliers.get(format, 1.0)
     return base * fmt_mult

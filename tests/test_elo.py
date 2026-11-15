@@ -41,6 +41,12 @@ class TestKFactor:
     def test_established(self):
         assert k_factor(1000, 20) == 32.0
 
+    def test_ramp_starts_at_new_k(self):
+        assert k_factor(1000, 10) == 64.0
+
+    def test_ramp_midpoint(self):
+        assert k_factor(1000, 15) == 48.0
+
     def test_team_format_applies_multiplier_only(self):
         k = k_factor(1000, 20, format="5v5")
         assert k == 32.0 * 0.5

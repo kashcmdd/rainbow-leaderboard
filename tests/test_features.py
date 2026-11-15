@@ -315,6 +315,14 @@ class TestDevLogin:
         assert players[0]["is_admin"] is True
 
 
+class TestStartingRating:
+    async def test_new_player_starts_at_configured_elo(self, client, admin_headers):
+        player = await _create_player(client, admin_headers, "fresh-player")
+        detail = (await client.get(f"/api/players/{player['id']}")).json()
+        rating = next(r for r in detail["ratings"] if r["format"] == "1v1")
+        assert rating["elo"] == settings.starting_elo
+
+
 class TestDecay:
     async def test_decay_is_idempotent_and_historied(self, client, admin_headers):
         player = await _create_player(client, admin_headers, "decay-player")

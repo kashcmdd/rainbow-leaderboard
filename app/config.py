@@ -3,9 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://rainbow:rainbow@localhost:5432/rainbow"
+    starting_elo: int = 500
     base_k: int = 32
     new_player_k: int = 64
     provisional_matches: int = 10
+    k_ramp_matches: int = 10
     rating_floor: int = 0
     decay_days: int = 30
     decay_per_day: int = 10

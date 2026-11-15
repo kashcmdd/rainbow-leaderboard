@@ -84,7 +84,7 @@ async def dev_login(
         player = Player(username=name, discord_id=discord_id, is_admin=settings.dev_login_admin)
         db.add(player)
         await db.flush()
-        db.add(Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0))
+        db.add(Rating(player_id=player.id, format="1v1", elo=settings.starting_elo, wins=0, losses=0, matches_played=0))
         await db.commit()
     elif settings.dev_login_admin and not player.is_admin:
         player.is_admin = True
@@ -169,7 +169,7 @@ async def callback(request: Request, code: str, state: str = None, db: AsyncSess
         db.add(player)
         try:
             await db.flush()
-            rating = Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0)
+            rating = Rating(player_id=player.id, format="1v1", elo=settings.starting_elo, wins=0, losses=0, matches_played=0)
             db.add(rating)
             await db.commit()
         except IntegrityError:
@@ -184,7 +184,7 @@ async def callback(request: Request, code: str, state: str = None, db: AsyncSess
                                 discord_id=discord_id, avatar_url=avatar_url)
                 db.add(player)
                 await db.flush()
-                db.add(Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0))
+                db.add(Rating(player_id=player.id, format="1v1", elo=settings.starting_elo, wins=0, losses=0, matches_played=0))
                 await db.commit()
     else:
         needs_update = False

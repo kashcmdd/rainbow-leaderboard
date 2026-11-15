@@ -169,7 +169,7 @@ async def bulk_reset_stats(body: dict, db: AsyncSession = Depends(get_db), admin
                 await db.execute(sa_delete(Match).where(Match.id == mid))
         ratings = await db.execute(select(Rating).where(Rating.player_id == pid))
         for r in ratings.scalars().all():
-            r.elo = 0
+            r.elo = settings.starting_elo
             r.wins = 0
             r.losses = 0
             r.matches_played = 0
@@ -245,7 +245,7 @@ async def reset_player_stats(player_id: uuid.UUID, db: AsyncSession = Depends(ge
             await db.execute(sa_delete(Match).where(Match.id == mid))
 
     for r in ratings:
-        r.elo = 0
+        r.elo = settings.starting_elo
         r.wins = 0
         r.losses = 0
         r.matches_played = 0
@@ -485,7 +485,7 @@ async def close_season(body: dict, db: AsyncSession = Depends(get_db), admin_use
 
     # Reset all ratings
     for r in ratings:
-        r.elo = 0
+        r.elo = settings.starting_elo
         r.wins = 0
         r.losses = 0
         r.matches_played = 0

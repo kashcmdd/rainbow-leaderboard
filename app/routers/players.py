@@ -6,6 +6,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.csrf import csrf_protect
 from app.database import get_db
 from app.deps import require_admin, require_user
@@ -29,7 +30,7 @@ async def create_player(body: PlayerCreate, db: AsyncSession = Depends(get_db), 
     player = Player(username=body.username)
     db.add(player)
     await db.flush()
-    rating = Rating(player_id=player.id, format="1v1", elo=0, wins=0, losses=0, matches_played=0)
+    rating = Rating(player_id=player.id, format="1v1", elo=settings.starting_elo, wins=0, losses=0, matches_played=0)
     db.add(rating)
     await db.commit()
     await db.refresh(player)

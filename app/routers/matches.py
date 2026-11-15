@@ -63,7 +63,7 @@ async def _get_or_create_rating(db: AsyncSession, player_id: uuid.UUID, format: 
     )
     rating = result.scalar_one_or_none()
     if not rating:
-        rating = Rating(player_id=player_id, format=format, elo=0)
+        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo)
         db.add(rating)
         await db.flush()
     return rating
@@ -78,7 +78,7 @@ async def _rating_for(db: AsyncSession, player_id: str, format: str, create: boo
     )
     rating = result.scalar_one_or_none()
     if rating is None:
-        rating = Rating(player_id=player_id, format=format, elo=0, wins=0, losses=0, matches_played=0)
+        rating = Rating(player_id=player_id, format=format, elo=settings.starting_elo, wins=0, losses=0, matches_played=0)
     return rating
 
 
@@ -232,7 +232,7 @@ async def _update_team_rating(
         select(Rating).where(Rating.team_id == team_id, Rating.format == format)
     )).scalar_one_or_none()
     if not rating:
-        rating = Rating(team_id=team_id, format=format, elo=0)
+        rating = Rating(team_id=team_id, format=format, elo=settings.starting_elo)
         db.add(rating)
         await db.flush()
     rating.elo = max(rating.elo + delta, settings.rating_floor)
