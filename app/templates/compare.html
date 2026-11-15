@@ -13,17 +13,20 @@
 <div class="mx-auto max-w-4xl">
     <div class="panel p-4 sm:p-5">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="relative">
-                <label class="field-label" for="player1Input">Player 1</label>
-                <input type="text" id="player1Input" class="field" placeholder="Search player…" autocomplete="off">
-                <div id="player1Suggestions" class="panel absolute z-20 mt-1 hidden w-full overflow-hidden"></div>
+            <div>
+                <label class="field-label" for="player1Select">Player 1</label>
+                <select id="player1Select" class="field" autocomplete="off">
+                    <option value="">Select player…</option>
+                </select>
             </div>
-            <div class="relative">
-                <label class="field-label" for="player2Input">Player 2</label>
-                <input type="text" id="player2Input" class="field" placeholder="Search player…" autocomplete="off">
-                <div id="player2Suggestions" class="panel absolute z-20 mt-1 hidden w-full overflow-hidden"></div>
+            <div>
+                <label class="field-label" for="player2Select">Player 2</label>
+                <select id="player2Select" class="field" autocomplete="off">
+                    <option value="">Select player…</option>
+                </select>
             </div>
         </div>
+        <p id="compareNote" class="mt-2 hidden text-xs" style="color:var(--loss);">Pick two different players.</p>
         <button id="compareBtn" class="btn btn-pink mt-4 w-full py-2.5" disabled>Compare</button>
     </div>
 
@@ -36,50 +39,33 @@ var selectedP1 = null, selectedP2 = null;
 
 async function loadPlayers() {
     var res = await fetch('/api/players');
-    if (res.ok) allPlayers = await res.json();
-}
-
-function setupSearch(inputId, suggestId, onSelect) {
-    var input = document.getElementById(inputId);
-    var suggestions = document.getElementById(suggestId);
-
-    input.addEventListener('input', function() {
-        var val = this.value.toLowerCase().trim();
-        if (!val) { suggestions.classList.add('hidden'); return; }
-        var matches = allPlayers.filter(function(p) { return p.username.toLowerCase().includes(val); }).slice(0, 8);
-        if (!matches.length) { suggestions.classList.add('hidden'); return; }
-        suggestions.innerHTML = matches.map(function(p) {
-            var initial = p.username.charAt(0).toUpperCase();
-            return '<div class="flex cursor-pointer items-center gap-3 border-b px-3 py-2.5 text-[13px] text-ink2 last:border-b-0 hover:bg-panel2 hover:text-ink" style="border-color:var(--line)" data-id="' + p.id + '" data-username="' + window.esc(p.username) + '">' +
-                '<span class="flex h-6 w-6 items-center justify-center border text-[10px] font-semibold" style="border-color:var(--line);background:var(--panel-2)">' + initial + '</span>' +
-                '<span>' + window.esc(p.username) + '</span></div>';
+    if (!res.ok) return;
+    allPlayers = (await res.json()).slice().sort(function(a, b) {
+        return a.username.localeCompare(b.username);
+    });
+    var options = '<option value="">Select player…</option>' +
+        allPlayers.map(function(p) {
+            return '<option value="' + p.id + '">' + window.esc(p.username) + '</option>';
         }).join('');
-        suggestions.classList.remove('hidden');
-        suggestions.querySelectorAll('div').forEach(function(el) {
-            el.addEventListener('click', function() {
-                var selected = { id: this.dataset.id, username: this.dataset.username };
-                input.value = this.dataset.username;
-                suggestions.classList.add('hidden');
-                onSelect(selected);
-            });
-        });
-    });
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') suggestions.classList.add('hidden');
-    });
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#' + inputId + ', #' + suggestId)) suggestions.classList.add('hidden');
-    });
+    document.getElementById('player1Select').innerHTML = options;
+    document.getElementById('player2Select').innerHTML = options;
 }
 
-setupSearch('player1Input', 'player1Suggestions', function(s) {
-    selectedP1 = s;
-    document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2);
-});
+function syncCompare() {
+    var v1 = document.getElementById('player1Select').value;
+    var v2 = document.getElementById('player2Select').value;
+    selectedP1 = allPlayers.find(function(p) { return p.id === v1; }) || null;
+    selectedP2 = allPlayers.find(function(p) { return p.id === v2; }) || null;
+    var same = v1 && v1 === v2;
+    document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2) || same;
+    document.getElementById('compareNote').classList.toggle('hidden', !same);
+}
 
-setupSearch('player2Input', 'player2Suggestions', function(s) {
-    selectedP2 = s;
-    document.getElementById('compareBtn').disabled = !(selectedP1 && selectedP2);
+['player1Select', 'player2Select'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', function() {
+        document.getElementById('compareResults').classList.add('hidden');
+        syncCompare();
+    });
 });
 
 document.getElementById('compareBtn').addEventListener('click', async function() {

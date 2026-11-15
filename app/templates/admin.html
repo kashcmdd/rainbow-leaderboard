@@ -260,20 +260,41 @@ function renderDistribution(s) {
     const pct = (d.count / total * 100);
     bar += `<div style="width:${pct}%;background:${d.color}" title="${d.rank}: ${d.count}"></div>`;
   }
+
+  // Walk the canonical rank list so every tier and every level appears, in order,
+  // even when nobody currently holds it.
+  const counts = {};
+  for (const d of s.distribution) counts[d.rank] = d.count;
+  const tiers = [];
+  for (const [name, , color] of RANKS) {
+    const parts = name.split(' ');
+    const tierName = parts[0];
+    const level = parts.slice(1).join(' ');
+    let tier = tiers.find((t) => t.name === tierName);
+    if (!tier) { tier = { name: tierName, color, count: 0, levels: [] }; tiers.push(tier); }
+    tier.color = color; // the highest level's swatch is the brightest for the tint
+    const count = counts[name] || 0;
+    tier.levels.push({ name, level, count });
+    tier.count += count;
+  }
   let legend = '';
-  for (const d of s.distribution) {
-    const pct = Math.round(d.count / total * 100);
-    legend += `<div class="flex items-center gap-2">
-      <span class="rank-dot" style="background:${d.color}"></span>
-      <span class="flex-1 truncate text-[12px] text-ink2">${d.rank}</span>
-      <span class="num text-[12px] text-ink3">${d.count}</span>
-      <span class="num w-9 text-right text-[11px] text-ink3">${pct}%</span>
+  for (const t of tiers) {
+    const pct = total ? Math.round(t.count / total * 100) : 0;
+    const levels = t.levels.map((l) => {
+      const empty = l.count === 0;
+      return `<span class="num text-[12px] ${empty ? 'text-ink3' : 'text-ink2'}"${empty ? ' style="opacity:.4"' : ''} title="${l.name}: ${l.count} rating${l.count === 1 ? '' : 's'}">${l.level ? `<span class="text-ink3">${l.level}</span> ` : ''}${l.count}</span>`;
+    }).join('');
+    legend += `<div class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" style="border-top:1px solid var(--line)">
+      <span class="flex w-24 shrink-0 items-center gap-2"><span class="rank-dot" style="background:${t.color}"></span><span class="text-[12px] font-semibold text-ink">${t.name}</span></span>
+      <span class="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">${levels}</span>
+      <span class="num shrink-0 text-[11px] text-ink3">${t.count} · ${pct}%</span>
     </div>`;
   }
+
   let html = `<div class="card p-5 mb-5 animate-slide-up" id="distSection">
     <div class="section-head mb-3"><h2 class="text-sm font-bold text-ink">Rating distribution</h2><span class="micro">${total} ratings</span></div>
     <div class="flex h-3 w-full overflow-hidden rounded-sm" style="background:var(--panel-2);">${bar}</div>
-    <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:gap-x-6 lg:grid-cols-3">${legend}</div>
+    <div class="mt-3">${legend}</div>
   </div>`;
   $('adminContent').insertAdjacentHTML('beforeend', html);
 }
