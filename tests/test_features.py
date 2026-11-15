@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import async_session
-from app.models import Rating, Season, SeasonSnapshot
+from app.models import Rating, RatingHistory, Season, SeasonSnapshot
 
 ADMIN_DISCORD_ID = "1415420243836407878"
 
@@ -267,6 +267,50 @@ class TestDevLogin:
         players = (await anon_client.get("/api/players")).json()
         assert [p["username"] for p in players] == ["DevAdmin"]
         assert players[0]["is_admin"] is True
+
+
+class TestDecay:
+    async def test_decay_is_idempotent_and_historied(self, client, admin_headers):
+        player = await _create_player(client, admin_headers, "decay-player")
+        pid = uuid.UUID(player["id"])
+
+        async with async_session() as db:
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
+            )).scalar_one()
+            rating.elo = 2150
+            rating.last_active = datetime.now(timezone.utc) - timedelta(days=40)
+            await db.commit()
+
+        from main import run_elo_decay
+        await run_elo_decay()
+
+        async with async_session() as db:
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
+            )).scalar_one()
+            first = rating.elo
+            assert first == 2100  # 10 days past the grace period; floor stops at the tier
+            assert rating.decay_applied == 100
+            history = (await db.execute(
+                select(RatingHistory).where(
+                    RatingHistory.rating_id == rating.id,
+                    RatingHistory.match_id.is_(None),
+                )
+            )).scalars().all()
+            assert len(history) == 1
+            assert history[0].elo_before == 2150
+            assert history[0].elo_after == 2100
+
+        await run_elo_decay()
+        async with async_session() as db:
+            rating = (await db.execute(
+                select(Rating).where(Rating.player_id == pid, Rating.format == "1v1")
+            )).scalar_one()
+            assert rating.elo == first, "a second run must not decay again"
+
+        rows = (await client.get(f"/api/players/{pid}/history")).json()
+        assert any(row["format"] == "decay" for row in rows)
 
 
 class TestAdminAccess:

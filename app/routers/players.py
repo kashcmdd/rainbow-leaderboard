@@ -237,6 +237,8 @@ async def update_player(player_id: uuid.UUID, body: PlayerUpdate, db: AsyncSessi
             db.add(rating)
         if body.elo is not None:
             rating.elo = body.elo
+            rating.decay_applied = 0
+            rating.is_decaying = False
         if body.wins is not None:
             rating.wins = body.wins
         if body.losses is not None:
@@ -355,7 +357,7 @@ async def get_player_history(
     )).scalars().all()
 
     # One query for every match in the window instead of one per history row.
-    match_ids = {e.match_id for e in entries}
+    match_ids = {e.match_id for e in entries if e.match_id}
     match_map = {}
     if match_ids:
         matches = (await db.execute(
@@ -370,6 +372,22 @@ async def get_player_history(
 
     out = []
     for e in reversed(entries):
+        if e.match_id is None:
+            # Decay entries have no match attached.
+            out.append({
+                "match_id": None,
+                "opponent": None,
+                "result": None,
+                "elo_before": e.elo_before,
+                "elo_after": e.elo_after,
+                "delta": e.elo_after - e.elo_before,
+                "score_a": None,
+                "score_b": None,
+                "format": "decay",
+                "timestamp": e.changed_at.isoformat(),
+            })
+            continue
+
         match = match_map.get(e.match_id)
         if not match:
             continue

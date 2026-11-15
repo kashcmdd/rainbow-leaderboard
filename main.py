@@ -26,11 +26,12 @@ async def run_elo_decay():
         from sqlalchemy import select
 
         from app.database import async_session
-        from app.models import AuditLog, Rating
+        from app.models import AuditLog, Rating, RatingHistory
         from app.ranks import RANKS
 
+        now = datetime.now(timezone.utc)
         async with async_session() as db:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=settings.decay_days)
+            cutoff = now - timedelta(days=settings.decay_days)
             result = await db.execute(
                 select(Rating).where(
                     Rating.last_active.isnot(None),
@@ -40,24 +41,48 @@ async def run_elo_decay():
             )
             ratings = result.scalars().all()
             for r in ratings:
-                days_inactive = (datetime.now(timezone.utc) - r.last_active).days
-                decay = min(days_inactive * settings.decay_per_day, settings.max_decay)
+                inactive_days = (now - r.last_active).days
+                if inactive_days <= settings.decay_days:
+                    continue
+
+                # Total decay owed since the player was last active, capped.
+                # decay_applied makes this idempotent across daily runs.
+                target_decay = min(
+                    (inactive_days - settings.decay_days) * settings.decay_per_day,
+                    settings.max_decay,
+                )
+                applied = r.decay_applied or 0
+                increment = target_decay - applied
+                if increment <= 0:
+                    continue
+
                 min_elo = 0
                 for _name, threshold, _ in reversed(RANKS):
                     if r.elo >= threshold:
                         min_elo = threshold
                         break
-                new_elo = max(r.elo - decay, min_elo)
-                if new_elo < r.elo:
-                    actual_decay = r.elo - new_elo
+
+                before = r.elo
+                r.elo = max(before - increment, min_elo)
+                r.decay_applied = target_decay
+                actual_decay = before - r.elo
+                if actual_decay > 0:
                     r.is_decaying = True
-                    r.elo = new_elo
+                    db.add(RatingHistory(
+                        rating_id=r.id,
+                        player_id=r.player_id,
+                        team_id=None,
+                        elo_before=before,
+                        elo_after=r.elo,
+                        match_id=None,
+                        changed_at=now,
+                    ))
                     db.add(AuditLog(
                         admin_id="system",
                         admin_name="System",
                         action="elo_decay",
                         target_id=str(r.player_id) if r.player_id else None,
-                        details=f"Decayed {actual_decay} ELO after {days_inactive} days inactive",
+                        details=f"Decayed {actual_decay} ELO after {inactive_days} days inactive",
                     ))
             await db.commit()
 

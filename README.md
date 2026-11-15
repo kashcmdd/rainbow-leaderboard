@@ -8,7 +8,7 @@ A competitive ranking and match-tracking system for **Rainbow Six Siege** built 
 
 ## ✨ What It Can Do
 
-- **ELO Rating System** — Glicko-style with provisional ratings, margin-of-victory weighting, and multi-format support (1v1 through 5v5). Decay keeps inactive players from camping the top.
+- **ELO Rating System** — Elo with provisional K, margin-of-victory weighting, zero-sum deltas (except at the rating floor), and multi-format support (1v1 through 5v5). Daily decay keeps inactive players from camping the top and is recorded in rating history.
 - **Player Profiles** — Each player gets a dashboard with ELO history chart, win/loss stats, rank icon, and a feed of their recent matches.
 - **Match Reporting** — Report results and let the algorithm handle the math. Configurable score formats for any game mode.
 - **Player Comparison** — Put any two players side by side with head-to-head stats and time-filtered match history.

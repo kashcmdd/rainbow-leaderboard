@@ -46,30 +46,24 @@ def calculate_delta(
     loser_is_new: bool = False,
     format: str = "1v1",
 ) -> tuple[int, int]:
+    """Winner gain and loser loss for one match.
+
+    Ratings are conserved: the loser drops by exactly the winner's gain, except
+    when the floor clips the loss (a player at 0 cannot go negative, so that
+    match creates a little rating at the bottom of the ladder).
+    """
     expected_win = expected_score(rating_winner, rating_loser)
-    expected_lose = 1 - expected_win
-
     k_winner = k_factor(rating_winner, winner_matches, winner_is_new, format)
-    k_loser = k_factor(rating_loser, loser_matches, loser_is_new, format)
-
     margin = margin_multiplier(score_winner, score_loser)
-
     prog_win = progressive_multiplier(rating_winner, True)
-    prog_lose = progressive_multiplier(rating_loser, False)
 
-    delta_winner = round(k_winner * (1.0 - expected_win) * margin * prog_win)
-    delta_loser = round(k_loser * (0.0 - expected_lose) * margin * prog_lose)
+    delta_winner = max(round(k_winner * (1.0 - expected_win) * margin * prog_win), 1)
+    delta_loser = -delta_winner
 
     # Floor so loser never drops below rating_floor
     max_loss = rating_loser - settings.rating_floor
-    delta_loser = max(delta_loser, -max_loss)
-
-    # Ensure at least ±1 so no zero-ELO matches
-    delta_winner = max(delta_winner, 1)
-    if delta_loser < 0:
-        delta_loser = min(delta_loser, -1)
-    elif max_loss > 0:
-        delta_loser = -1
+    if delta_loser < -max_loss:
+        delta_loser = -max_loss
 
     return delta_winner, delta_loser
 

@@ -89,6 +89,7 @@ class Rating(Base):
     top_position = Column(Integer, nullable=True)
     streak = Column(Integer, default=0)
     is_decaying = Column(Boolean, default=False)
+    decay_applied = Column(Integer, default=0, server_default="0", nullable=False)
     last_active = Column(DateTime(timezone=True), nullable=True)
     last_updated = Column(DateTime(timezone=True), default=utcnow)
 
@@ -110,7 +111,7 @@ class RatingHistory(Base):
     team_id = Column(UUID(as_uuid=True), ForeignKey("teams.id"), nullable=True)
     elo_before = Column(Integer, nullable=False)
     elo_after = Column(Integer, nullable=False)
-    match_id = Column(UUID(as_uuid=True), ForeignKey("matches.id"), nullable=False)
+    match_id = Column(UUID(as_uuid=True), ForeignKey("matches.id"), nullable=True)
     changed_at = Column(DateTime(timezone=True), default=utcnow)
 
     __table_args__ = (

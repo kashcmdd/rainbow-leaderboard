@@ -224,6 +224,7 @@ async def _update_player_ratings(
             rating.losses += 1
             rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
         rating.is_decaying = False
+        rating.decay_applied = 0
         from datetime import datetime, timezone
         rating.last_active = datetime.now(timezone.utc)
         rating.last_updated = datetime.now(timezone.utc)
