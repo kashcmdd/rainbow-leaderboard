@@ -40,7 +40,7 @@ jobs:
           npm run tw:build
           git diff --exit-code app/static/css/tailwind.min.css
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
