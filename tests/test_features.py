@@ -157,6 +157,52 @@ class TestPlayerHistory:
         assert rows[0]["result"] == "win"
 
 
+class TestTeamDeltas:
+    async def test_individual_team_deltas_and_zero_sum(self, client, admin_headers):
+        a1 = await _create_player(client, admin_headers, "tmt-d-a1")
+        a2 = await _create_player(client, admin_headers, "tmt-d-a2")
+        b1 = await _create_player(client, admin_headers, "tmt-d-b1")
+        b2 = await _create_player(client, admin_headers, "tmt-d-b2")
+
+        async with async_session() as db:
+            for player, elo in ((a1, 1200), (a2, 2200), (b1, 1200), (b2, 2200)):
+                db.add(Rating(
+                    player_id=uuid.UUID(player["id"]), format="2v2", elo=elo,
+                    wins=10, losses=10, matches_played=20,
+                ))
+            await db.commit()
+
+        report = await client.post(
+            "/api/matches",
+            json={
+                "format": "2v2",
+                "team_a_player_names": [a1["username"], a2["username"]],
+                "team_b_player_names": [b1["username"], b2["username"]],
+                "score_a": 3,
+                "score_b": 1,
+            },
+            headers=admin_headers,
+        )
+        assert report.status_code == 200
+        match_id = uuid.UUID(report.json()["match_id"])
+
+        async with async_session() as db:
+            rows = (await db.execute(
+                select(RatingHistory).where(RatingHistory.match_id == match_id)
+            )).scalars().all()
+            deltas = {str(r.player_id): r.elo_after - r.elo_before for r in rows}
+
+        # The lowest-rated winner should gain more than the highest-rated one.
+        assert deltas[a1["id"]] > deltas[a2["id"]] > 0
+        assert deltas[b1["id"]] < 0 and deltas[b2["id"]] < 0
+        # Team-level conservation, allowing rounding.
+        assert abs(sum(deltas.values())) <= 2
+
+        detail = (await client.get(f"/api/matches/{match_id}")).json()
+        expected_average = round((deltas[a1["id"]] + deltas[a2["id"]]) / 2)
+        assert detail["elo_delta_a"] == expected_average
+
+
 class TestSeasonHistory:
     async def test_snapshots_are_ordered_newest_first(self, client, admin_headers):
         player = await _create_player(client, admin_headers, "season-player")

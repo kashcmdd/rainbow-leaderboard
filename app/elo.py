@@ -22,8 +22,7 @@ def k_factor(rating: int, matches_played: int, is_new: bool = False, format: str
         base = float(settings.base_k)
 
     fmt_mult = settings.format_k_multipliers.get(format, 1.0)
-    players_per_team = int(format.split("v")[0]) if "v" in format else 1
-    return base * fmt_mult * players_per_team
+    return base * fmt_mult
 
 
 def progressive_multiplier(rating: int, is_winner: bool) -> float:

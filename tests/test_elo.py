@@ -41,10 +41,10 @@ class TestKFactor:
     def test_established(self):
         assert k_factor(1000, 20) == 32.0
 
-    def test_team_format_splits_k(self):
+    def test_team_format_applies_multiplier_only(self):
         k = k_factor(1000, 20, format="5v5")
-        assert k == 32.0 * 0.5 * 5
-        assert k == 80.0
+        assert k == 32.0 * 0.5
+        assert k == 16.0
 
 
 class TestProgressiveMultiplier:

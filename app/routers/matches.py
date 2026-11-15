@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.csrf import csrf_protect
 from app.database import get_db
-from app.elo import calculate_delta, calculate_delta_team
+from app.elo import calculate_delta, expected_score, k_factor, margin_multiplier, progressive_multiplier
 from app.models import Match, Player, Rating, RatingHistory, Team, TeamMember
 from app.ranks import recalculate_top_positions
 from app.ratelimit import rate_limit
@@ -99,28 +99,81 @@ def _validate_teams(format: str, team_a: list[Player], team_b: list[Player]) -> 
 async def _compute_deltas(
     db: AsyncSession,
     format: str,
-    winner_players: list[Player],
-    loser_players: list[Player],
-    winner_score: int,
-    loser_score: int,
+    team_a_players: list[Player],
+    team_b_players: list[Player],
+    score_a: int,
+    score_b: int,
+    winner: str,
     create: bool = False,
-) -> tuple[int, int]:
-    winner_ratings = [await _rating_for(db, str(p.id), format, create) for p in winner_players]
-    loser_ratings = [await _rating_for(db, str(p.id), format, create) for p in loser_players]
-    winner_avg = sum(r.elo for r in winner_ratings) // len(winner_ratings)
-    loser_avg = sum(r.elo for r in loser_ratings) // len(loser_ratings)
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Per-player deltas for both sides.
+
+    Team formats use each player's own rating against the opposing average, then
+    scale the two sides so total gains equal total losses. 1v1 keeps the exact
+    zero-sum pair from ``calculate_delta``.
+    """
+    a_ratings = {str(p.id): await _rating_for(db, str(p.id), format, create) for p in team_a_players}
+    b_ratings = {str(p.id): await _rating_for(db, str(p.id), format, create) for p in team_b_players}
+    a_avg = sum(r.elo for r in a_ratings.values()) // len(a_ratings)
+    b_avg = sum(r.elo for r in b_ratings.values()) // len(b_ratings)
+
     if format == "1v1":
-        return calculate_delta(
-            winner_avg, loser_avg, winner_score, loser_score,
-            winner_ratings[0].matches_played, loser_ratings[0].matches_played,
-            format=format,
+        if winner == "a":
+            a_delta, b_delta = calculate_delta(
+                a_avg, b_avg, score_a, score_b,
+                a_ratings[str(team_a_players[0].id)].matches_played,
+                b_ratings[str(team_b_players[0].id)].matches_played,
+                format=format,
+            )
+        else:
+            b_delta, a_delta = calculate_delta(
+                b_avg, a_avg, score_b, score_a,
+                b_ratings[str(team_b_players[0].id)].matches_played,
+                a_ratings[str(team_a_players[0].id)].matches_played,
+                format=format,
+            )
+        return (
+            {str(team_a_players[0].id): a_delta},
+            {str(team_b_players[0].id): b_delta},
         )
-    return calculate_delta_team(
-        winner_avg, loser_avg, winner_score, loser_score,
-        max(r.matches_played for r in winner_ratings),
-        max(r.matches_played for r in loser_ratings),
-        format=format,
-    )
+
+    def raw_delta(rating: int, opponent_avg: int, matches: int,
+                  score_for: int, score_against: int, is_winner: bool) -> int:
+        expected = expected_score(rating, opponent_avg)
+        k = k_factor(rating, matches, format=format)
+        margin = margin_multiplier(score_for, score_against)
+        if is_winner:
+            return max(round(k * (1 - expected) * margin * progressive_multiplier(rating, True)), 1)
+        return -max(round(k * expected * margin * progressive_multiplier(rating, False)), 1)
+
+    a_deltas = {
+        pid: raw_delta(r.elo, b_avg, r.matches_played, score_a, score_b, winner == "a")
+        for pid, r in a_ratings.items()
+    }
+    b_deltas = {
+        pid: raw_delta(r.elo, a_avg, r.matches_played, score_b, score_a, winner == "b")
+        for pid, r in b_ratings.items()
+    }
+
+    # Team-level zero-sum: balance total gains against total losses.
+    wins = a_deltas if winner == "a" else b_deltas
+    losses = b_deltas if winner == "a" else a_deltas
+    total_win = sum(wins.values())
+    total_loss = sum(-d for d in losses.values())
+    if total_win > 0 and total_loss > 0:
+        target = (total_win + total_loss) / 2
+        for pid in wins:
+            wins[pid] = max(round(wins[pid] * target / total_win), 1)
+        for pid in losses:
+            losses[pid] = -max(round(-losses[pid] * target / total_loss), 1)
+
+    # Don't push anyone below the rating floor.
+    for deltas, ratings in ((a_deltas, a_ratings), (b_deltas, b_ratings)):
+        for pid, delta in list(deltas.items()):
+            if delta < 0 and ratings[pid].elo + delta < settings.rating_floor:
+                deltas[pid] = settings.rating_floor - ratings[pid].elo
+
+    return a_deltas, b_deltas
 
 
 async def _find_duplicate(
@@ -204,18 +257,20 @@ async def _notify_discord(message: str) -> None:
         logger.warning("Discord webhook failed", exc_info=True)
 
 
-async def _update_player_ratings(
+async def _apply_player_ratings(
     db: AsyncSession,
-    player_ids: list[str],
-    delta: int,
+    players: list[Player],
+    deltas: dict[str, int],
     is_winner: bool,
     format: str,
     match_id: uuid.UUID,
-):
-    for pid in player_ids:
+) -> None:
+    for player in players:
+        pid = str(player.id)
+        delta = deltas.get(pid, 0)
         rating = await _get_or_create_rating(db, pid, format)
         old_elo = rating.elo
-        rating.elo = max(rating.elo + delta, settings.rating_floor)
+        rating.elo = max(old_elo + delta, settings.rating_floor)
         rating.matches_played += 1
         if is_winner:
             rating.wins += 1
@@ -225,9 +280,9 @@ async def _update_player_ratings(
             rating.streak = (rating.streak - 1) if rating.streak < 0 else -1
         rating.is_decaying = False
         rating.decay_applied = 0
-        from datetime import datetime, timezone
-        rating.last_active = datetime.now(timezone.utc)
-        rating.last_updated = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        rating.last_active = now
+        rating.last_updated = now
 
         db.add(RatingHistory(
             rating_id=rating.id,
@@ -303,24 +358,22 @@ async def report_match(
     winner_score = body.score_a if winner == "a" else body.score_b
     loser_score = body.score_b if winner == "a" else body.score_a
 
-    delta_winner, delta_loser = await _compute_deltas(
-        db, body.format, winner_players, loser_players,
-        winner_score, loser_score, create=True,
+    team_a_deltas, team_b_deltas = await _compute_deltas(
+        db, body.format, team_a_players, team_b_players,
+        body.score_a, body.score_b, winner, create=True,
     )
 
-    match.elo_delta_a = delta_winner if winner == "a" else delta_loser
-    match.elo_delta_b = delta_loser if winner == "a" else delta_winner
+    match.elo_delta_a = round(sum(team_a_deltas.values()) / len(team_a_deltas))
+    match.elo_delta_b = round(sum(team_b_deltas.values()) / len(team_b_deltas))
 
-    await _update_player_ratings(
-        db, [str(p.id) for p in winner_players], delta_winner, True, body.format, str(match.id)
+    await _apply_player_ratings(
+        db, team_a_players, team_a_deltas, winner == "a", body.format, match.id
     )
-    await _update_player_ratings(
-        db, [str(p.id) for p in loser_players], delta_loser, False, body.format, str(match.id)
+    await _apply_player_ratings(
+        db, team_b_players, team_b_deltas, winner == "b", body.format, match.id
     )
-    await _update_team_rating(db, team_a.id, delta_winner if winner == "a" else delta_loser,
-                              winner == "a", body.format)
-    await _update_team_rating(db, team_b.id, delta_winner if winner == "b" else delta_loser,
-                              winner == "b", body.format)
+    await _update_team_rating(db, team_a.id, match.elo_delta_a, winner == "a", body.format)
+    await _update_team_rating(db, team_b.id, match.elo_delta_b, winner == "b", body.format)
 
     await db.commit()
 
@@ -371,8 +424,8 @@ async def report_match(
         "score": f"{body.score_a}-{body.score_b}",
         "winner_player_id": first_winner_id,
         "elo_deltas": {
-            "winner_delta": delta_winner,
-            "loser_delta": delta_loser,
+            "winner_delta": match.elo_delta_a if winner == "a" else match.elo_delta_b,
+            "loser_delta": match.elo_delta_b if winner == "a" else match.elo_delta_a,
         },
     }
 
@@ -408,15 +461,12 @@ async def preview_match(
         body.score_a, body.score_b,
     )
 
-    winner_players = team_a_players if winner == "a" else team_b_players
-    loser_players = team_b_players if winner == "a" else team_a_players
-    winner_score = body.score_a if winner == "a" else body.score_b
-    loser_score = body.score_b if winner == "a" else body.score_a
-
-    delta_winner, delta_loser = await _compute_deltas(
-        db, body.format, winner_players, loser_players,
-        winner_score, loser_score, create=False,
+    team_a_deltas, team_b_deltas = await _compute_deltas(
+        db, body.format, team_a_players, team_b_players,
+        body.score_a, body.score_b, winner, create=False,
     )
+    avg_a = round(sum(team_a_deltas.values()) / len(team_a_deltas))
+    avg_b = round(sum(team_b_deltas.values()) / len(team_b_deltas))
 
     return {
         "team_a": " + ".join(p.username for p in team_a_players),
@@ -425,8 +475,12 @@ async def preview_match(
         "duplicate": duplicate is not None,
         "duplicate_match_id": str(duplicate.id) if duplicate else None,
         "elo_deltas": {
-            "winner_delta": delta_winner,
-            "loser_delta": delta_loser,
+            "winner_delta": avg_a if winner == "a" else avg_b,
+            "loser_delta": avg_b if winner == "a" else avg_a,
+        },
+        "player_deltas": {
+            "team_a": team_a_deltas,
+            "team_b": team_b_deltas,
         },
     }
 
