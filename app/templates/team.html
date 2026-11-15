@@ -4,7 +4,7 @@
 
 <div class="page-head">
     <div>
-        <p class="eyebrow">Team dossier</p>
+        <p class="eyebrow">Team</p>
         <h1 class="display text-[34px] leading-none sm:text-[40px]" id="teamName">Team</h1>
         <p class="micro mt-2" id="teamMeta">Loading…</p>
     </div>
@@ -109,7 +109,7 @@ async function loadTeam() {
                         ${t.streak ? `<span class="badge ${t.streak > 0 ? 'badge-win' : 'badge-loss'}">${t.streak > 0 ? '+' : ''}${t.streak}</span>` : ''}
                     </div>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
-                        <span class="micro">Form</span>${formTicks(t.form)}
+                        <span class="micro">Last 5</span>${formTicks(t.form)}
                         <span class="micro">7d <span style="color:${t.movement_7d > 0 ? 'var(--win)' : t.movement_7d < 0 ? 'var(--loss)' : 'var(--ink-3)'}">${t.movement_7d > 0 ? '+' : ''}${t.movement_7d}</span></span>
                     </div>
                     ${trend(t.history)}

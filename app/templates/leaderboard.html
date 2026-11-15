@@ -4,7 +4,7 @@
 
 <div class="page-head">
     <div>
-        <p class="eyebrow">Ladder</p>
+        <p class="eyebrow">Standings</p>
         <h1 class="display text-[30px] leading-none sm:text-[40px]">Leaderboard</h1>
         <p class="micro mt-2">Standings · auto-refresh 10s</p>
     </div>
@@ -116,15 +116,15 @@ function pad2(n) {
 function movementLabel(value) {
     if (!value) return '';
     var color = value > 0 ? 'var(--win)' : 'var(--loss)';
-    return '<span style="color:' + color + '">' + (value > 0 ? '+' : '') + value + '</span> <span class="text-ink3">7d</span>';
+    return '<span style="color:' + color + '" title="Rating change over the last 7 days">' + (value > 0 ? '+' : '') + value + '</span>';
 }
 
 function formTicks(form) {
     if (!form || !form.length) return '';
-    return form.map(function (r) {
+    return '<span class="flex items-center gap-0.5" title="Last five results">' + form.map(function (r) {
         var color = r === 'W' ? 'var(--win)' : 'var(--loss)';
         return '<span class="num flex h-3 w-3 items-center justify-center border text-[8px] font-semibold" style="border-color:' + color + ';color:' + color + '">' + r + '</span>';
-    }).join('');
+    }).join('') + '</span>';
 }
 
 async function loadLeaderboard() {

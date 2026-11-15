@@ -267,14 +267,14 @@ function renderProfile(root, state) {
     var progressBlock = nextRank
         ? '<div class="w-full sm:w-48"><div class="micro flex items-center justify-between"><span>Next: ' + nextLabel + '</span><span>' + toNext + ' ELO</span></div>' +
           '<div class="meter mt-1.5"><span style="width:' + progressPct + '%;background:var(--signal)"></span></div></div>'
-        : '<div class="micro text-right">' + (best && best.top_position ? 'Top ' + best.top_position : 'Champion') + '</div>';
+        : '';
 
     var header = '<div class="panel mb-3 overflow-hidden sm:mb-4">' +
         '<div class="p-4 sm:p-6">' +
         '<div class="flex items-center gap-4 sm:gap-6">' +
         renderAvatar(p, rank, initial) +
         '<div class="min-w-0 flex-1">' +
-        '<p class="eyebrow">Player dossier</p>' +
+        '<p class="eyebrow">Player profile</p>' +
         '<h1 class="display truncate text-[30px] leading-none sm:text-[42px]">' + esc(p.username) + '</h1>' +
         '<div class="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">' +
         '<span class="rank-chip" style="--rank-color:' + rank.color + '">' +
@@ -282,10 +282,10 @@ function renderProfile(root, state) {
         '<span class="micro">' + totPlayed.toLocaleString() + ' matches</span>' +
         '<span class="micro" style="color:var(--ink-2)">' + wr.toFixed(0) + '% WR</span>' +
         (best && best.provisional ? '<span class="badge badge-warn" title="Rating is still settling">Provisional</span>' : '') +
-        (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '">' + (best.streak > 0 ? '+' : '') + best.streak + '</span>' : '') +
+        (best && best.streak ? '<span class="badge ' + (best.streak > 0 ? 'badge-win' : 'badge-loss') + '" title="Current win/loss streak">' + (best.streak > 0 ? '+' : '') + best.streak + ' streak</span>' : '') +
         (IS_ADMIN ? '<a href="/player/' + PLAYER_ID + '/edit" class="btn btn-sm">Edit</a>' : '') +
         '</div>' +
-        (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">Form</span>' + formTicks + '</div>' : '') +
+        (form.length ? '<div class="mt-2 flex items-center gap-1.5"><span class="micro mr-1">Last 5</span>' + formTicks + '</div>' : '') +
         (best && best.provisional ? '<p class="mt-2 text-[11px] text-ink3">Rating is still settling — play more matches.</p>' : '') +
         '</div></div>' +
         '<div class="mt-4 flex flex-col gap-3 sm:mt-5 sm:flex-row sm:items-end sm:justify-between">' +
@@ -295,7 +295,7 @@ function renderProfile(root, state) {
         '<div class="stat-label">ELO</div>' +
         '<div id="eloCounter" class="num rank-elo text-[32px] font-semibold leading-none sm:text-[44px]" style="--rank-color:' + rank.color + '">0</div>' +
         '<div class="micro mt-1">' +
-        (movement ? '<span style="color:' + (movement > 0 ? 'var(--win)' : 'var(--loss)') + '">' + (movement > 0 ? '+' : '') + movement + ' 7d</span>' : '&nbsp;') +
+        (movement ? '<span style="color:' + (movement > 0 ? 'var(--win)' : 'var(--loss)') + '">' + (movement > 0 ? '+' : '') + movement + ' this week</span>' : '&nbsp;') +
         '</div>' +
         '</div></div>' +
         progressBlock +
