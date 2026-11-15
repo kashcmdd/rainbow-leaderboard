@@ -46,8 +46,12 @@ async def list_teams(db: AsyncSession = Depends(get_db)):
     teams = (await db.execute(
         select(Team)
         .options(selectinload(Team.members).selectinload(TeamMember.player))
-        .where(Team.is_active.is_(True))
-        .order_by(Team.name.asc().nulls_last(), Team.created_at.asc())
+        .where(
+            Team.is_active.is_(True),
+            Team.name.isnot(None),
+            Team.name != "TBD",
+        )
+        .order_by(Team.name.asc(), Team.created_at.asc())
     )).scalars().all()
     ratings = (await db.execute(select(Rating).where(Rating.team_id.isnot(None)))).scalars().all()
     rating_map = {str(r.team_id): r for r in ratings}
