@@ -13,3 +13,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Tailwind 4 changes the config and plugin model; handle it as a migration.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
