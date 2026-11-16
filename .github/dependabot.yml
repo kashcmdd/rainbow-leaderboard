@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # 1.x drops the event-loop fixture model this suite uses; migrate deliberately.
+      - dependency-name: "pytest-asyncio"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
