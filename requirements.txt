@@ -12,7 +12,7 @@ pillow==13.0.0
 aiofiles==24.1.0
 httpx==0.28.1
 itsdangerous==2.2.0
-apscheduler==3.11.0
+apscheduler==3.11.3
 pytest==8.3.4
 pytest-asyncio==0.24.0
 ruff==0.17.5
