@@ -149,6 +149,16 @@ Interactive docs are at `/docs` (Swagger) and `/redoc`.
 | GET | `/og/match/{id}.png` | Share card |
 | GET | `/healthz` | Liveness + database check |
 
+## Production checklist
+
+- [ ] `SECRET_KEY` and `POSTGRES_PASSWORD` are unique and not committed
+- [ ] `COOKIE_SECURE=true` behind HTTPS, with `PUBLIC_BASE_URL` set
+- [ ] Discord OAuth app created; `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` and `DISCORD_REDIRECT_URI` set
+- [ ] `ADMIN_DISCORD_IDS` set (or admins promoted in the panel)
+- [ ] `DEV_LOGIN_DISCORD_ID` and `DEV_LOGIN_ADMIN` unset
+- [ ] Database backups scheduled and restores tested
+- [ ] Uptime check pointed at `/healthz`
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
